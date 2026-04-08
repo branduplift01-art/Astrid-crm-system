@@ -137,6 +137,8 @@ body { font-family: 'Segoe UI', -apple-system, sans-serif; background: #f0f2f5; 
 .dash-stat.today .ds-value { color: #f9ab00; }
 .dash-stat.active .ds-value { color: #4285f4; }
 .dash-stat.money .ds-value { color: #0f9d58; }
+.dash-stat[onclick] { cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; }
+.dash-stat[onclick]:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
 
 /* CRM filters */
 .crm-filters { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
@@ -904,6 +906,8 @@ let state = {
   rates: { rmbTwd: 4.75, usdTwd: 30.5, usdRmb: 7.2453 },
   companyName: '',
   crmFilter: 'all',
+  crmTagFilter: '',
+  crmSpecialFilter: '',
   crmSubTab: 'customers',
   orderFilter: 'all'
 };
@@ -1417,8 +1421,12 @@ function renderDashboard() {
   const estTotal = state.customers.reduce((s, c) => s + (c.estimatedAmount || 0), 0);
 
   el('crm-dashboard').innerHTML = `
-    <div class="dash-stat urgent"><div class="ds-value">${overdue}</div><div class="ds-label">已逾期追蹤</div></div>
-    <div class="dash-stat today"><div class="ds-value">${dueToday}</div><div class="ds-label">今日待追蹤</div></div>
+    <div class="dash-stat urgent" onclick="jumpToCustomers('overdue')" title="點擊查看逾期客戶">
+      <div class="ds-value">${overdue}</div><div class="ds-label">⚠️ 已逾期追蹤</div>
+    </div>
+    <div class="dash-stat today" onclick="jumpToCustomers('today')" title="點擊查看今日待追蹤">
+      <div class="ds-value">${dueToday}</div><div class="ds-label">📅 今日待追蹤</div>
+    </div>
     <div class="dash-stat active"><div class="ds-value">${activeOrders}</div><div class="ds-label">進行中訂單</div></div>
     <div class="dash-stat money"><div class="ds-value">$${estTotal > 0 ? estTotal.toLocaleString() : '0'}</div><div class="ds-label">預估總金額</div></div>
   `;
@@ -1433,12 +1441,21 @@ function renderCRM() {
   const counts = { all: state.customers.length };
   CRM_STATUSES.forEach(s => { counts[s.value] = state.customers.filter(c => c.status === s.value).length; });
 
+  const usedTags = [...new Set(state.customers.flatMap(c => c.tags || []))].sort();
+  const tagRow = usedTags.length > 0 ? `
+    <div style="display:flex;gap:6px;flex-wrap:wrap;padding-top:8px;border-top:1px solid #f0f0f0;width:100%;">
+      <span style="font-size:11px;color:#999;align-self:center;white-space:nowrap;">🏷️ 標籤:</span>
+      <button class="crm-filter-btn ${state.crmTagFilter===''?'active':''}" onclick="setCRMTagFilter('')">全部標籤</button>
+      ${usedTags.map(t => `<button class="crm-filter-btn ${state.crmTagFilter===t?'active':''}" onclick="setCRMTagFilter('${escapeAttr(t)}')">${escapeHtml(t)}</button>`).join('')}
+    </div>` : '';
+
   el('crm-filters').innerHTML = `
     <button class="crm-filter-btn ${state.crmFilter==='all'?'active':''}" onclick="setCRMFilter('all')">全部<span class="badge">${counts.all}</span></button>
     ${CRM_STATUSES.map(s => `
       <button class="crm-filter-btn ${state.crmFilter===s.value?'active':''}" onclick="setCRMFilter('${s.value}')">
         ${s.label}<span class="badge">${counts[s.value] || 0}</span>
       </button>`).join('')}
+    ${tagRow}
   `;
 
   const search = (el('crm-search')?.value || '').toLowerCase();
@@ -1448,12 +1465,19 @@ function renderCRM() {
       const haystack = [c.name, c.country, c.productType, ...(c.tags||[])].join(' ').toLowerCase();
       if (!haystack.includes(search)) return false;
     }
+    if (state.crmTagFilter && !(c.tags || []).includes(state.crmTagFilter)) return false;
     return true;
   });
 
+  const today = new Date().toISOString().slice(0, 10);
+  if (state.crmSpecialFilter === 'overdue') {
+    filtered = filtered.filter(c => c.followUpDate && c.followUpDate < today);
+  } else if (state.crmSpecialFilter === 'today') {
+    filtered = filtered.filter(c => c.followUpDate === today);
+  }
+
   // Sort
   const sortBy = el('crm-sort')?.value || 'followup';
-  const today = new Date().toISOString().slice(0, 10);
   if (sortBy === 'followup') {
     filtered.sort((a, b) => {
       if (!a.followUpDate && !b.followUpDate) return 0;
@@ -1469,24 +1493,26 @@ function renderCRM() {
     filtered.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
   }
 
+  const specialBanner = state.crmSpecialFilter ? `
+    <div style="background:#fff3cd;border:1px solid #ffd700;border-radius:8px;padding:6px 12px;font-size:12px;display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <span>${state.crmSpecialFilter === 'overdue' ? '⚠️ 顯示：已逾期追蹤的客戶' : '📅 顯示：今日待追蹤的客戶'} (${filtered.length} 位)</span>
+      <button onclick="state.crmSpecialFilter='';renderCRM();" style="background:none;border:none;cursor:pointer;font-size:16px;color:#666;line-height:1;">✕</button>
+    </div>` : '';
+
   if (filtered.length === 0) {
-    el('crm-list').innerHTML = '<div class="empty-state"><div class="icon">👥</div><div>尚無符合條件的客戶</div></div>';
+    el('crm-list').innerHTML = specialBanner + '<div class="empty-state"><div class="icon">👥</div><div>尚無符合條件的客戶</div></div>';
     return;
   }
 
-  el('crm-list').innerHTML = filtered.map(c => {
+  el('crm-list').innerHTML = specialBanner + filtered.map(c => {
     const statusInfo = CRM_STATUSES.find(s => s.value === c.status) || CRM_STATUSES[0];
     const totalQuoted = c.quotes ? c.quotes.reduce((sum, q) => sum + q.totalAmount, 0) : 0;
     const lastQuote = c.quotes && c.quotes.length > 0 ? c.quotes[0] : null;
     const stars = '★'.repeat(c.importance || 2) + '☆'.repeat(4 - (c.importance || 2));
 
-    // Follow-up date styling
-    let fuClass = 'nodate', fuText = '未設定追單日';
-    if (c.followUpDate) {
-      if (c.followUpDate < today) { fuClass = 'overdue'; fuText = `逾期: ${c.followUpDate}`; }
-      else if (c.followUpDate === today) { fuClass = 'today'; fuText = `今天: ${c.followUpDate}`; }
-      else { fuClass = 'upcoming'; fuText = `${c.followUpDate}`; }
-    }
+    // Follow-up date — friendly text
+    const fuInfo = followUpInfo(c.followUpDate, today);
+    const fuClass = fuInfo.cls, fuText = fuInfo.text;
 
     // Card border class
     let cardClass = 'customer-card';
@@ -1557,7 +1583,26 @@ function renderCRM() {
   }).join('');
 }
 
-function setCRMFilter(f) { state.crmFilter = f; renderCRM(); }
+function setCRMFilter(f) { state.crmFilter = f; state.crmSpecialFilter = ''; renderCRM(); }
+
+function setCRMTagFilter(tag) { state.crmTagFilter = tag; state.crmSpecialFilter = ''; renderCRM(); }
+
+function jumpToCustomers(specialFilter) {
+  switchTab('crm');
+  switchCRMSub('customers');
+  state.crmSpecialFilter = specialFilter;
+  state.crmTagFilter = '';
+  renderCRM();
+}
+
+function followUpInfo(dateStr, today) {
+  if (!dateStr) return { cls: 'nodate', text: '未設追單日' };
+  const diffDays = Math.round((new Date(dateStr) - new Date(today)) / 86400000);
+  if (diffDays < 0) return { cls: 'overdue', text: `⚠️ 已逾期 ${Math.abs(diffDays)} 天` };
+  if (diffDays === 0) return { cls: 'today', text: `📅 今天要追！` };
+  if (diffDays <= 7) return { cls: 'upcoming', text: `⏰ 還有 ${diffDays} 天` };
+  return { cls: 'upcoming', text: `📅 還有 ${diffDays} 天` };
+}
 
 function cycleImportance(custId) {
   const c = state.customers.find(x => x.id === custId);
