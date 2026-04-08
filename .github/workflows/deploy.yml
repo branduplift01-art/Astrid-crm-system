@@ -1,0 +1,20 @@
+name: Deploy to Netlify
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Netlify
+        run: |
+          zip -j deploy.zip index.html shipping-data.json
+          curl -s -X POST "https://api.netlify.com/api/v1/sites/${{ secrets.NETLIFY_SITE_ID }}/deploys" \
+            -H "Authorization: Bearer ${{ secrets.NETLIFY_TOKEN }}" \
+            -H "Content-Type: application/zip" \
+            --data-binary @deploy.zip
+          echo "✅ 部署完成！"
