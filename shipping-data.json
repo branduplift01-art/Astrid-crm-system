@@ -1,0 +1,1677 @@
+{
+  "Australia": {
+    "count": 27,
+    "min_ship": 7.0,
+    "max_ship": 663.2,
+    "avg_ship": 110.12259259259261,
+    "avg_weight": 14.845000000000002,
+    "avg_rate_per_kg": 13.075928072771356,
+    "ship_lines": [
+      {
+        "name": "澳新专线 标准",
+        "count": 5
+      },
+      {
+        "name": "A-LEE",
+        "count": 4
+      },
+      {
+        "name": "Express-HK Saver",
+        "count": 3
+      }
+    ],
+    "ship_days": [
+      {
+        "days": "7-9",
+        "count": 3
+      },
+      {
+        "days": "6-9",
+        "count": 1
+      }
+    ],
+    "samples": [
+      {
+        "ship_usd": 30.8,
+        "weight_kg": 3.0,
+        "product": "白 木單夾",
+        "days": "6-9",
+        "line": "澳新专线 标准"
+      },
+      {
+        "ship_usd": 32.3,
+        "weight_kg": 7.8,
+        "product": "08-16 改為 60支  透單夾金勾",
+        "days": "7-12",
+        "line": "澳新专线 标准"
+      },
+      {
+        "ship_usd": 30.21,
+        "weight_kg": 0,
+        "product": "50支 植絨衣架 粉紅色",
+        "days": "6-11",
+        "line": ""
+      },
+      {
+        "ship_usd": 7.0,
+        "weight_kg": 4.0,
+        "product": "100 *   14*60cm",
+        "days": "",
+        "line": ""
+      },
+      {
+        "ship_usd": 255.2,
+        "weight_kg": 12.7,
+        "product": "100 黑23CM 金勾",
+        "days": "",
+        "line": ""
+      },
+      {
+        "ship_usd": 106.5,
+        "weight_kg": 0,
+        "product": "100 黑23CM 金勾",
+        "days": "",
+        "line": "A-LEE"
+      },
+      {
+        "ship_usd": 53.2,
+        "weight_kg": 3.6,
+        "product": "透單夾",
+        "days": "",
+        "line": "A-LEE"
+      },
+      {
+        "ship_usd": 85.0,
+        "weight_kg": 7.7,
+        "product": "透單夾",
+        "days": "",
+        "line": "A-LEE"
+      },
+      {
+        "ship_usd": 282.2,
+        "weight_kg": 0,
+        "product": "200復古木42CM 20*復古木褲架 + 印LOGO",
+        "days": "",
+        "line": "ALEE"
+      },
+      {
+        "ship_usd": 52.0,
+        "weight_kg": 6.0,
+        "product": "透單夾/100PCS",
+        "days": "",
+        "line": "新澳專線  6-9天"
+      }
+    ]
+  },
+  "Brazil": {
+    "count": 1,
+    "min_ship": 192.6,
+    "max_ship": 192.6,
+    "avg_ship": 192.6,
+    "avg_weight": 32.0,
+    "avg_rate_per_kg": 6.01875,
+    "ship_lines": [
+      {
+        "name": "A-LEE",
+        "count": 1
+      }
+    ],
+    "ship_days": [],
+    "samples": [
+      {
+        "ship_usd": 192.6,
+        "weight_kg": 32.0,
+        "product": "透牆金單鉤",
+        "days": "",
+        "line": "A-LEE"
+      }
+    ]
+  },
+  "Canada": {
+    "count": 10,
+    "min_ship": 2.0,
+    "max_ship": 908.0,
+    "avg_ship": 198.161,
+    "avg_weight": 19.0,
+    "avg_rate_per_kg": 18.61880086379757,
+    "ship_lines": [
+      {
+        "name": "UPS Expedited标准",
+        "count": 1
+      },
+      {
+        "name": "A-LEE",
+        "count": 1
+      },
+      {
+        "name": "UPS Expedited 标准",
+        "count": 1
+      }
+    ],
+    "ship_days": [
+      {
+        "days": "7-9",
+        "count": 2
+      },
+      {
+        "days": "6-11",
+        "count": 1
+      }
+    ],
+    "samples": [
+      {
+        "ship_usd": 30.21,
+        "weight_kg": 1.7,
+        "product": "透金勾 20支",
+        "days": "6-11",
+        "line": "UPS Expedited标准"
+      },
+      {
+        "ship_usd": 118.3,
+        "weight_kg": 13.0,
+        "product": "100支  23CM金勾黑",
+        "days": "",
+        "line": "A-LEE"
+      },
+      {
+        "ship_usd": 48.6,
+        "weight_kg": 2.8,
+        "product": "20支  23CM 給耀翔",
+        "days": "6-10",
+        "line": "UPS Expedited 标准"
+      },
+      {
+        "ship_usd": 27.5,
+        "weight_kg": 0.3,
+        "product": "1支 樣品  Wood 23CM",
+        "days": "7-9",
+        "line": "Express-Saver"
+      },
+      {
+        "ship_usd": 105.5,
+        "weight_kg": 12.7,
+        "product": "100支  Wood 23CM",
+        "days": "7-9",
+        "line": "在线下单"
+      },
+      {
+        "ship_usd": 125.0,
+        "weight_kg": 31.8,
+        "product": "浙江金华 80個 指甲油架",
+        "days": "",
+        "line": "FedEx IE 标准"
+      },
+      {
+        "ship_usd": 194.8,
+        "weight_kg": 26.7,
+        "product": "多產品",
+        "days": "",
+        "line": "总计费重量：47KG"
+      },
+      {
+        "ship_usd": 2.0,
+        "weight_kg": 4.0,
+        "product": "15+15 木衣架",
+        "days": "",
+        "line": ""
+      },
+      {
+        "ship_usd": 421.7,
+        "weight_kg": 0,
+        "product": "100袋+100小木夾",
+        "days": "",
+        "line": ""
+      },
+      {
+        "ship_usd": 908.0,
+        "weight_kg": 78.0,
+        "product": "壓克力衣架/500PCS",
+        "days": "",
+        "line": "08-27 Gary報的運費"
+      }
+    ]
+  },
+  "France": {
+    "count": 17,
+    "min_ship": 8.4,
+    "max_ship": 908.0,
+    "avg_ship": 194.58823529411765,
+    "avg_weight": 18.608333333333334,
+    "avg_rate_per_kg": 10.914923967200307,
+    "ship_lines": [
+      {
+        "name": "ALEE",
+        "count": 2
+      },
+      {
+        "name": "A-LEE",
+        "count": 2
+      },
+      {
+        "name": "改為 ALEE",
+        "count": 2
+      }
+    ],
+    "ship_days": [
+      {
+        "days": "6-9",
+        "count": 2
+      },
+      {
+        "days": "6-8",
+        "count": 1
+      }
+    ],
+    "samples": [
+      {
+        "ship_usd": 133.2,
+        "weight_kg": 18.2,
+        "product": "100*23CM 白金 100*白單夾 + 印紫色 LOGO",
+        "days": "6-8",
+        "line": "ALEE"
+      },
+      {
+        "ship_usd": 94.4,
+        "weight_kg": 9.6,
+        "product": "改 50*23CM 白金 50*白單夾 + 印紫色 LOGO",
+        "days": "8-12",
+        "line": "A-LEE"
+      },
+      {
+        "ship_usd": 82.1,
+        "weight_kg": 0,
+        "product": "",
+        "days": "6-9",
+        "line": "改為 ALEE"
+      },
+      {
+        "ship_usd": 123.4,
+        "weight_kg": 15.8,
+        "product": "改 100*23CM 白金 50*白單夾 + 印紫色 LOGO",
+        "days": "6-9",
+        "line": "改為 ALEE"
+      },
+      {
+        "ship_usd": 136.5,
+        "weight_kg": 53.8,
+        "product": "",
+        "days": "",
+        "line": "A-LEE"
+      },
+      {
+        "ship_usd": 447.0,
+        "weight_kg": 0,
+        "product": "100 成人用品架 壓克力架",
+        "days": "",
+        "line": ""
+      },
+      {
+        "ship_usd": 51.9,
+        "weight_kg": 3.6,
+        "product": "50 個  透單夾金勾  不做LOGO",
+        "days": "",
+        "line": "阿里:"
+      },
+      {
+        "ship_usd": 16.3,
+        "weight_kg": 0.5,
+        "product": "法國 主帳  鎳色透單夾+黑LOGO offcial order  2000pc",
+        "days": "",
+        "line": "全球3C专线 标准"
+      },
+      {
+        "ship_usd": 85.0,
+        "weight_kg": 16.5,
+        "product": "法國 主帳  鎳色透單夾+黑LOGO offcial order  500pcs",
+        "days": "10-17",
+        "line": "LUCKY"
+      },
+      {
+        "ship_usd": 875.0,
+        "weight_kg": 0,
+        "product": "法國 主帳  鎳色透單夾+黑LOGO offcial order  500pcs",
+        "days": "",
+        "line": ""
+      }
+    ]
+  },
+  "Germany": {
+    "count": 4,
+    "min_ship": 33.6,
+    "max_ship": 70.8,
+    "avg_ship": 58.675,
+    "avg_weight": 4.425,
+    "avg_rate_per_kg": 13.84572192513369,
+    "ship_lines": [
+      {
+        "name": "Express-HK IP 优选",
+        "count": 1
+      },
+      {
+        "name": "欧美专线 标准",
+        "count": 1
+      },
+      {
+        "name": "改為:",
+        "count": 1
+      }
+    ],
+    "ship_days": [],
+    "samples": [
+      {
+        "ship_usd": 33.6,
+        "weight_kg": 2.0,
+        "product": "25透單夾",
+        "days": "",
+        "line": "Express-HK IP 优选"
+      },
+      {
+        "ship_usd": 70.8,
+        "weight_kg": 5.1,
+        "product": "25透單夾 + 20 23CM黑",
+        "days": "",
+        "line": "欧美专线 标准"
+      },
+      {
+        "ship_usd": 70.8,
+        "weight_kg": 5.1,
+        "product": "25透單夾 + 20 23CM黑",
+        "days": "",
+        "line": "改為:"
+      },
+      {
+        "ship_usd": 59.5,
+        "weight_kg": 5.5,
+        "product": "100支 黑23CM髮夾",
+        "days": "",
+        "line": "A-LEE  可以"
+      }
+    ]
+  },
+  "Ghana": {
+    "count": 3,
+    "min_ship": 46.3,
+    "max_ship": 83.0,
+    "avg_ship": 63.833333333333336,
+    "avg_weight": 4.133333333333333,
+    "avg_rate_per_kg": 16.3490614978306,
+    "ship_lines": [
+      {
+        "name": "EMS特快",
+        "count": 2
+      },
+      {
+        "name": "ALEE",
+        "count": 1
+      }
+    ],
+    "ship_days": [],
+    "samples": [
+      {
+        "ship_usd": 46.3,
+        "weight_kg": 2.4,
+        "product": "30 透單夾",
+        "days": "",
+        "line": "ALEE"
+      },
+      {
+        "ship_usd": 83.0,
+        "weight_kg": 6.2,
+        "product": "30 透單夾 + 30 木 白",
+        "days": "",
+        "line": "EMS特快"
+      },
+      {
+        "ship_usd": 62.2,
+        "weight_kg": 3.8,
+        "product": "30 木 白",
+        "days": "",
+        "line": "EMS特快"
+      }
+    ]
+  },
+  "India": {
+    "count": 10,
+    "min_ship": 12.9,
+    "max_ship": 499.5,
+    "avg_ship": 260.53,
+    "avg_weight": 22.5375,
+    "avg_rate_per_kg": 12.49014925885962,
+    "ship_lines": [
+      {
+        "name": "印度专线快递到门（不含税）",
+        "count": 2
+      },
+      {
+        "name": "香港联邦 （FEDE IE）",
+        "count": 1
+      },
+      {
+        "name": "3/29 ALEE報價   系統的查不到",
+        "count": 1
+      }
+    ],
+    "ship_days": [
+      {
+        "days": "7-13",
+        "count": 3
+      },
+      {
+        "days": "6-8",
+        "count": 2
+      }
+    ],
+    "samples": [
+      {
+        "ship_usd": 320.5,
+        "weight_kg": 23.7,
+        "product": "23CM白",
+        "days": "",
+        "line": "香港联邦 （FEDE IE）"
+      },
+      {
+        "ship_usd": 451.4,
+        "weight_kg": 0,
+        "product": "23CM白500+ 白髮袋 500",
+        "days": "7-13",
+        "line": "3/29 ALEE報價   系統的查不到"
+      },
+      {
+        "ship_usd": 370.5,
+        "weight_kg": 23.6,
+        "product": "23CM白500+ 白髮袋 500",
+        "days": "7-13",
+        "line": "印度海派最低1方计费  单价 2200/方 派送费+3/KG  DDP  时效45天左右"
+      },
+      {
+        "ship_usd": 499.5,
+        "weight_kg": 24.9,
+        "product": "23CM白100+ 白髮袋 100",
+        "days": "7-13",
+        "line": "Express-IE"
+      },
+      {
+        "ship_usd": 62.6,
+        "weight_kg": 13.5,
+        "product": "黑木單夾 400",
+        "days": "9-14",
+        "line": ""
+      },
+      {
+        "ship_usd": 327.1,
+        "weight_kg": 78.0,
+        "product": "200 或 500PC",
+        "days": "",
+        "line": "印度海派最低1方计费"
+      },
+      {
+        "ship_usd": 327.1,
+        "weight_kg": 0,
+        "product": "500PC",
+        "days": "",
+        "line": ""
+      },
+      {
+        "ship_usd": 206.2,
+        "weight_kg": 13.0,
+        "product": "23CM髮夾 300",
+        "days": "",
+        "line": "香港联邦IP价-FEDU"
+      },
+      {
+        "ship_usd": 12.9,
+        "weight_kg": 0.8,
+        "product": "23CM髮夾 1PC",
+        "days": "6-8",
+        "line": "印度专线快递到门（不含税）"
+      },
+      {
+        "ship_usd": 27.5,
+        "weight_kg": 2.8,
+        "product": "",
+        "days": "6-8",
+        "line": "印度专线快递到门（不含税）"
+      }
+    ]
+  },
+  "Ivory Coast": {
+    "count": 4,
+    "min_ship": 5.0,
+    "max_ship": 456.0,
+    "avg_ship": 291.5,
+    "avg_weight": 7.0,
+    "avg_rate_per_kg": 65.14285714285714,
+    "ship_lines": [
+      {
+        "name": "大陆FedEx-D IP",
+        "count": 1
+      }
+    ],
+    "ship_days": [],
+    "samples": [
+      {
+        "ship_usd": 325.0,
+        "weight_kg": 0,
+        "product": "50復古木+ 50 木色小單夾 金勾",
+        "days": "",
+        "line": ""
+      },
+      {
+        "ship_usd": 380.0,
+        "weight_kg": 0,
+        "product": "50復古木+ 50 木色小單夾 金勾 + logo",
+        "days": "",
+        "line": ""
+      },
+      {
+        "ship_usd": 456.0,
+        "weight_kg": 7.0,
+        "product": "50復古木+ 50 木色小單夾 金勾 + 50復古木+ 50 木色小單夾 金勾 ",
+        "days": "",
+        "line": "大陆FedEx-D IP"
+      },
+      {
+        "ship_usd": 5.0,
+        "weight_kg": 0,
+        "product": "大D頭 鏡面金  24PCS",
+        "days": "",
+        "line": ""
+      }
+    ]
+  },
+  "Japan": {
+    "count": 1,
+    "min_ship": 13.1,
+    "max_ship": 13.1,
+    "avg_ship": 13.1,
+    "avg_weight": 2.3,
+    "avg_rate_per_kg": 5.695652173913044,
+    "ship_lines": [
+      {
+        "name": "日韩专线 优选",
+        "count": 1
+      }
+    ],
+    "ship_days": [],
+    "samples": [
+      {
+        "ship_usd": 13.1,
+        "weight_kg": 2.3,
+        "product": "",
+        "days": "",
+        "line": "日韩专线 优选"
+      }
+    ]
+  },
+  "Malaysia": {
+    "count": 2,
+    "min_ship": 121.0,
+    "max_ship": 195.0,
+    "avg_ship": 158.0,
+    "avg_weight": 208.0,
+    "avg_rate_per_kg": 0.5817307692307693,
+    "ship_lines": [
+      {
+        "name": "东南亚快船   标准",
+        "count": 2
+      }
+    ],
+    "ship_days": [],
+    "samples": [
+      {
+        "ship_usd": 121.0,
+        "weight_kg": 208.0,
+        "product": "30 cm 正面和背面 都印金LOGO  500 /  1000 支",
+        "days": "",
+        "line": "东南亚快船   标准"
+      },
+      {
+        "ship_usd": 195.0,
+        "weight_kg": 0,
+        "product": "",
+        "days": "",
+        "line": "东南亚快船   标准"
+      }
+    ]
+  },
+  "Mexico": {
+    "count": 9,
+    "min_ship": 7.0,
+    "max_ship": 882.0,
+    "avg_ship": 383.3,
+    "avg_weight": 20.428571428571427,
+    "avg_rate_per_kg": 27.29810613742046,
+    "ship_lines": [
+      {
+        "name": "1.阿里 墨西哥快船DDP  标准",
+        "count": 1
+      },
+      {
+        "name": "3. GARY  4812 RMB= *1.05=  US",
+        "count": 1
+      },
+      {
+        "name": "墨西哥快船DDP  标准",
+        "count": 1
+      }
+    ],
+    "ship_days": [
+      {
+        "days": "7-15",
+        "count": 1
+      },
+      {
+        "days": "8-18",
+        "count": 1
+      }
+    ],
+    "samples": [
+      {
+        "ship_usd": 478.0,
+        "weight_kg": 40.0,
+        "product": "",
+        "days": "",
+        "line": "1.阿里 墨西哥快船DDP  标准"
+      },
+      {
+        "ship_usd": 708.0,
+        "weight_kg": 13.0,
+        "product": "",
+        "days": "",
+        "line": "3. GARY  4812 RMB= *1.05=  US"
+      },
+      {
+        "ship_usd": 882.0,
+        "weight_kg": 40.0,
+        "product": "",
+        "days": "",
+        "line": "墨西哥快船DDP  标准"
+      },
+      {
+        "ship_usd": 855.0,
+        "weight_kg": 0,
+        "product": "",
+        "days": "",
+        "line": "海派  計算"
+      },
+      {
+        "ship_usd": 111.3,
+        "weight_kg": 8.5,
+        "product": "ABS 塑膠電鍍勾",
+        "days": "",
+        "line": "A-LEE"
+      },
+      {
+        "ship_usd": 28.4,
+        "weight_kg": 0.4,
+        "product": "ABS 塑膠電鍍勾",
+        "days": "",
+        "line": "Express-Saver 优选"
+      },
+      {
+        "ship_usd": 7.0,
+        "weight_kg": 0,
+        "product": "ABS 塑膠電鍍勾",
+        "days": "",
+        "line": ""
+      },
+      {
+        "ship_usd": 190.0,
+        "weight_kg": 21.5,
+        "product": "200小黑袋 +200 透單金勾",
+        "days": "7-15",
+        "line": "阿里"
+      },
+      {
+        "ship_usd": 190.0,
+        "weight_kg": 19.6,
+        "product": "200小黑袋 +200 黑單金勾 (報)",
+        "days": "8-18",
+        "line": "Express-IE 标准"
+      }
+    ]
+  },
+  "Netherlands": {
+    "count": 16,
+    "min_ship": 62.0,
+    "max_ship": 138.2,
+    "avg_ship": 97.88750000000002,
+    "avg_weight": 17.661538461538463,
+    "avg_rate_per_kg": 6.200524271412255,
+    "ship_lines": [
+      {
+        "name": "Lucky 双清包税到门",
+        "count": 2
+      },
+      {
+        "name": "全球普货专线   標準",
+        "count": 2
+      },
+      {
+        "name": "ALEE",
+        "count": 2
+      }
+    ],
+    "ship_days": [
+      {
+        "days": "8-16",
+        "count": 1
+      },
+      {
+        "days": "9-14",
+        "count": 1
+      }
+    ],
+    "samples": [
+      {
+        "ship_usd": 64.3,
+        "weight_kg": 13.0,
+        "product": "100支 26CM  寶寶套裝 衣褲架 電鍍扁鐵勾",
+        "days": "",
+        "line": "中美快船 优选"
+      },
+      {
+        "ship_usd": 84.2,
+        "weight_kg": 12.7,
+        "product": "",
+        "days": "",
+        "line": "中欧卡航 优选"
+      },
+      {
+        "ship_usd": 108.0,
+        "weight_kg": 21.1,
+        "product": "200 黑單夾",
+        "days": "8-16",
+        "line": "全球普货专线  标准 要商檢不能用)"
+      },
+      {
+        "ship_usd": 113.0,
+        "weight_kg": 0,
+        "product": "200 黑單夾",
+        "days": "",
+        "line": "Lucky 双清包税到门"
+      },
+      {
+        "ship_usd": 129.5,
+        "weight_kg": 21.1,
+        "product": "200 黑單夾",
+        "days": "",
+        "line": "Lucky 双清包税到门"
+      },
+      {
+        "ship_usd": 103.0,
+        "weight_kg": 21.1,
+        "product": "200 黑單夾",
+        "days": "",
+        "line": "全球普货专线   標準"
+      },
+      {
+        "ship_usd": 119.0,
+        "weight_kg": 11.1,
+        "product": "200 黑單夾  改DDP路線",
+        "days": "",
+        "line": "全球普货专线   標準"
+      },
+      {
+        "ship_usd": 138.2,
+        "weight_kg": 17.1,
+        "product": "200 黑單夾 + 10個大A頭 金包包架 要DDP路線",
+        "days": "",
+        "line": "GARY 合箱后18KG"
+      },
+      {
+        "ship_usd": 108.7,
+        "weight_kg": 12.7,
+        "product": "",
+        "days": "9-14",
+        "line": "Express-HK Expedited 标准"
+      },
+      {
+        "ship_usd": 85.0,
+        "weight_kg": 13.4,
+        "product": "100 壓克力衣架 改陸運或 鐵路運",
+        "days": "",
+        "line": "A-LEE"
+      }
+    ]
+  },
+  "New Zealand": {
+    "count": 2,
+    "min_ship": 110.0,
+    "max_ship": 110.0,
+    "avg_ship": 110.0,
+    "avg_weight": 12.6,
+    "avg_rate_per_kg": 8.730158730158731,
+    "ship_lines": [
+      {
+        "name": "ALEE",
+        "count": 1
+      },
+      {
+        "name": "ALEE  fedex 不能運",
+        "count": 1
+      }
+    ],
+    "ship_days": [],
+    "samples": [
+      {
+        "ship_usd": 110.0,
+        "weight_kg": 12.6,
+        "product": "木 啞3分光白色髮夾 23CM 100PCS",
+        "days": "",
+        "line": "ALEE"
+      },
+      {
+        "ship_usd": 110.0,
+        "weight_kg": 0,
+        "product": "木 啞3分光白色髮夾 23CM 100PCS",
+        "days": "",
+        "line": "ALEE  fedex 不能運"
+      }
+    ]
+  },
+  "Norway": {
+    "count": 1,
+    "min_ship": 48.3,
+    "max_ship": 48.3,
+    "avg_ship": 48.3,
+    "avg_weight": 2.5,
+    "avg_rate_per_kg": 19.32,
+    "ship_lines": [
+      {
+        "name": "Express-HK IP优选",
+        "count": 1
+      }
+    ],
+    "ship_days": [],
+    "samples": [
+      {
+        "ship_usd": 48.3,
+        "weight_kg": 2.5,
+        "product": "",
+        "days": "",
+        "line": "Express-HK IP优选"
+      }
+    ]
+  },
+  "Poland": {
+    "count": 2,
+    "min_ship": 67.5,
+    "max_ship": 103.5,
+    "avg_ship": 85.5,
+    "avg_weight": 9.1,
+    "avg_rate_per_kg": 9.866803278688526,
+    "ship_lines": [
+      {
+        "name": "欧美专线 标准",
+        "count": 1
+      },
+      {
+        "name": "在线下单",
+        "count": 1
+      }
+    ],
+    "ship_days": [
+      {
+        "days": "11-17",
+        "count": 1
+      }
+    ],
+    "samples": [
+      {
+        "ship_usd": 103.5,
+        "weight_kg": 12.2,
+        "product": "",
+        "days": "11-17",
+        "line": "欧美专线 标准"
+      },
+      {
+        "ship_usd": 67.5,
+        "weight_kg": 6.0,
+        "product": "半圓金 鐵線衣架 100支",
+        "days": "",
+        "line": "在线下单"
+      }
+    ]
+  },
+  "Puerto Rico": {
+    "count": 2,
+    "min_ship": 61.2,
+    "max_ship": 115.2,
+    "avg_ship": 88.2,
+    "avg_weight": 13.9,
+    "avg_rate_per_kg": 8.433287950987067,
+    "ship_lines": [
+      {
+        "name": "Express-IP 优选",
+        "count": 1
+      },
+      {
+        "name": "ALEE",
+        "count": 1
+      }
+    ],
+    "ship_days": [
+      {
+        "days": "6-14",
+        "count": 1
+      }
+    ],
+    "samples": [
+      {
+        "ship_usd": 115.2,
+        "weight_kg": 22.6,
+        "product": "",
+        "days": "6-14",
+        "line": "Express-IP 优选"
+      },
+      {
+        "ship_usd": 61.2,
+        "weight_kg": 5.2,
+        "product": "30支  黑SLAT球架 銘鑫",
+        "days": "",
+        "line": "ALEE"
+      }
+    ]
+  },
+  "Qatar": {
+    "count": 5,
+    "min_ship": 120.0,
+    "max_ship": 556.2,
+    "avg_ship": 237.04000000000002,
+    "avg_weight": 16.549999999999997,
+    "avg_rate_per_kg": 19.466729073845862,
+    "ship_lines": [
+      {
+        "name": "A-LEE",
+        "count": 1
+      },
+      {
+        "name": "Express-Expedited",
+        "count": 1
+      },
+      {
+        "name": "中东专线 标准",
+        "count": 1
+      }
+    ],
+    "ship_days": [],
+    "samples": [
+      {
+        "ship_usd": 556.2,
+        "weight_kg": 10.5,
+        "product": "300 白色/鎳勾 /平頭/43CM/ 厚3CM/U槽",
+        "days": "",
+        "line": "A-LEE"
+      },
+      {
+        "ship_usd": 120.0,
+        "weight_kg": 13.7,
+        "product": "100透單夾 銀色",
+        "days": "",
+        "line": "Express-Expedited"
+      },
+      {
+        "ship_usd": 200.0,
+        "weight_kg": 0,
+        "product": "300透單夾",
+        "days": "",
+        "line": "中东专线 标准"
+      },
+      {
+        "ship_usd": 169.0,
+        "weight_kg": 15.6,
+        "product": "23CM白髮夾  銀勾",
+        "days": "",
+        "line": "GARY"
+      },
+      {
+        "ship_usd": 140.0,
+        "weight_kg": 26.4,
+        "product": "HE1021/100PCS  多送客人5PCS  IRIS報價",
+        "days": "",
+        "line": "大陆Aramex"
+      }
+    ]
+  },
+  "Russia": {
+    "count": 2,
+    "min_ship": 347.9,
+    "max_ship": 1270.0,
+    "avg_ship": 808.95,
+    "avg_weight": 44.7,
+    "avg_rate_per_kg": 7.782997762863534,
+    "ship_lines": [
+      {
+        "name": "75KG",
+        "count": 1
+      }
+    ],
+    "ship_days": [
+      {
+        "days": "32-37",
+        "count": 1
+      }
+    ],
+    "samples": [
+      {
+        "ship_usd": 347.9,
+        "weight_kg": 44.7,
+        "product": "1000支 塑膠 9孔衣架",
+        "days": "32-37",
+        "line": "75KG"
+      },
+      {
+        "ship_usd": 1270.0,
+        "weight_kg": 0,
+        "product": "6勾毛巾架 /500PCS",
+        "days": "",
+        "line": ""
+      }
+    ]
+  },
+  "Singapore": {
+    "count": 6,
+    "min_ship": 19.5,
+    "max_ship": 125.2,
+    "avg_ship": 65.86666666666666,
+    "avg_weight": 11.200000000000001,
+    "avg_rate_per_kg": 5.828647014361301,
+    "ship_lines": [
+      {
+        "name": "新加坡普货专线SG03-P（不含税）",
+        "count": 3
+      },
+      {
+        "name": "A-LEE",
+        "count": 2
+      },
+      {
+        "name": "新加坡海运小包(不包税)SG11-SL",
+        "count": 1
+      }
+    ],
+    "ship_days": [
+      {
+        "days": "8-11",
+        "count": 2
+      },
+      {
+        "days": "16-19",
+        "count": 1
+      }
+    ],
+    "samples": [
+      {
+        "ship_usd": 125.2,
+        "weight_kg": 19.6,
+        "product": "200支 啞光23CM + 50支 啞光白42CM 平頭衣架",
+        "days": "8-11",
+        "line": "A-LEE"
+      },
+      {
+        "ship_usd": 92.5,
+        "weight_kg": 12.6,
+        "product": "改 200支 啞光23CM",
+        "days": "8-11",
+        "line": "A-LEE"
+      },
+      {
+        "ship_usd": 50.0,
+        "weight_kg": 7.0,
+        "product": "30CM suit clothes pants hanger",
+        "days": "",
+        "line": "新加坡普货专线SG03-P（不含税）"
+      },
+      {
+        "ship_usd": 54.0,
+        "weight_kg": 10.0,
+        "product": "30CM suit clothes pants hanger",
+        "days": "",
+        "line": "新加坡普货专线SG03-P（不含税）"
+      },
+      {
+        "ship_usd": 54.0,
+        "weight_kg": 8.0,
+        "product": "30CM suit clothes pants hanger   50 + 20",
+        "days": "",
+        "line": "新加坡普货专线SG03-P（不含税）"
+      },
+      {
+        "ship_usd": 19.5,
+        "weight_kg": 10.0,
+        "product": "30CM suit clothes pants hanger    50 + 2",
+        "days": "16-19",
+        "line": "新加坡海运小包(不包税)SG11-SL"
+      }
+    ]
+  },
+  "South Africa": {
+    "count": 2,
+    "min_ship": 41.5,
+    "max_ship": 74.4,
+    "avg_ship": 57.95,
+    "avg_weight": 5.300000000000001,
+    "avg_rate_per_kg": 15.755050505050505,
+    "ship_lines": [
+      {
+        "name": "A-LEE",
+        "count": 1
+      },
+      {
+        "name": "Express-Amx 经济",
+        "count": 1
+      }
+    ],
+    "ship_days": [
+      {
+        "days": "7-12",
+        "count": 1
+      }
+    ],
+    "samples": [
+      {
+        "ship_usd": 74.4,
+        "weight_kg": 8.8,
+        "product": "30 23cm",
+        "days": "7-12",
+        "line": "A-LEE"
+      },
+      {
+        "ship_usd": 41.5,
+        "weight_kg": 1.8,
+        "product": "",
+        "days": "",
+        "line": "Express-Amx 经济"
+      }
+    ]
+  },
+  "Spain": {
+    "count": 4,
+    "min_ship": 5.0,
+    "max_ship": 147.7,
+    "avg_ship": 68.0,
+    "avg_weight": 19.566666666666666,
+    "avg_rate_per_kg": 8.91388888888889,
+    "ship_lines": [
+      {
+        "name": "A-LEE",
+        "count": 1
+      },
+      {
+        "name": "IP专线 标准",
+        "count": 1
+      },
+      {
+        "name": "中欧铁路DDP经济  944.44   30-50天",
+        "count": 1
+      }
+    ],
+    "ship_days": [
+      {
+        "days": "9-12",
+        "count": 1
+      }
+    ],
+    "samples": [
+      {
+        "ship_usd": 5.0,
+        "weight_kg": 0,
+        "product": "粉金勾 耀祥+ 100pcs",
+        "days": "",
+        "line": ""
+      },
+      {
+        "ship_usd": 76.0,
+        "weight_kg": 7.5,
+        "product": "白色 木單夾 用耀祥",
+        "days": "9-12",
+        "line": "A-LEE"
+      },
+      {
+        "ship_usd": 43.3,
+        "weight_kg": 3.2,
+        "product": "200支  戒指 壓克力錐  廠 广东广州",
+        "days": "",
+        "line": "IP专线 标准"
+      },
+      {
+        "ship_usd": 147.7,
+        "weight_kg": 48.0,
+        "product": "300個  26CM SIUT 衣架",
+        "days": "",
+        "line": "中欧铁路DDP经济  944.44   30-50天"
+      }
+    ]
+  },
+  "Sweden": {
+    "count": 6,
+    "min_ship": 21.5,
+    "max_ship": 172.8,
+    "avg_ship": 70.26666666666667,
+    "avg_weight": 8.18,
+    "avg_rate_per_kg": 30.554949515526623,
+    "ship_lines": [
+      {
+        "name": "birgersvenssons väg 16e",
+        "count": 1
+      },
+      {
+        "name": "中国香港-3C&普货 优选",
+        "count": 1
+      },
+      {
+        "name": "瑞典",
+        "count": 1
+      }
+    ],
+    "ship_days": [
+      {
+        "days": "10-13",
+        "count": 1
+      },
+      {
+        "days": "7-10",
+        "count": 1
+      }
+    ],
+    "samples": [
+      {
+        "ship_usd": 23.5,
+        "weight_kg": 0,
+        "product": "",
+        "days": "",
+        "line": "birgersvenssons väg 16e"
+      },
+      {
+        "ship_usd": 21.5,
+        "weight_kg": 0.2,
+        "product": "",
+        "days": "",
+        "line": "中国香港-3C&普货 优选"
+      },
+      {
+        "ship_usd": 45.8,
+        "weight_kg": 5.5,
+        "product": "23cm 黑髮夾 *10 + 40CM 衣架*10 衣架頭寬6CM",
+        "days": "10-13",
+        "line": "瑞典"
+      },
+      {
+        "ship_usd": 103.0,
+        "weight_kg": 11.3,
+        "product": "耀翔 都啞黑 1. 23CM 20支 2. 40CM 3CM厚 10支 激光雕刻",
+        "days": "",
+        "line": "欧美专线 标准"
+      },
+      {
+        "ship_usd": 172.8,
+        "weight_kg": 21.1,
+        "product": "耀翔 都啞黑 1. 23CM 200支 2. 40CM 3CM厚 10支 激光雕",
+        "days": "",
+        "line": "A-LEE"
+      },
+      {
+        "ship_usd": 55.0,
+        "weight_kg": 2.8,
+        "product": "20支 粉色金勾",
+        "days": "7-10",
+        "line": "A-lEE"
+      }
+    ]
+  },
+  "Switzerland": {
+    "count": 3,
+    "min_ship": 84.2,
+    "max_ship": 314.2,
+    "avg_ship": 186.69999999999996,
+    "avg_weight": 6.4,
+    "avg_rate_per_kg": 13.15625,
+    "ship_lines": [
+      {
+        "name": "香港UPS红单特价D",
+        "count": 2
+      },
+      {
+        "name": "香港DHL特惠G价",
+        "count": 1
+      }
+    ],
+    "ship_days": [],
+    "samples": [
+      {
+        "ship_usd": 84.2,
+        "weight_kg": 6.4,
+        "product": "",
+        "days": "",
+        "line": "香港DHL特惠G价"
+      },
+      {
+        "ship_usd": 161.7,
+        "weight_kg": 0,
+        "product": "250PC 白15CM髮夾",
+        "days": "",
+        "line": "香港UPS红单特价D"
+      },
+      {
+        "ship_usd": 314.2,
+        "weight_kg": 0,
+        "product": "500PC 白15CM髮夾",
+        "days": "",
+        "line": "香港UPS红单特价D"
+      }
+    ]
+  },
+  "UAE": {
+    "count": 11,
+    "min_ship": 1.0,
+    "max_ship": 213.0,
+    "avg_ship": 86.93636363636364,
+    "avg_weight": 22.75,
+    "avg_rate_per_kg": 9.729586022443165,
+    "ship_lines": [
+      {
+        "name": "A-LEE",
+        "count": 2
+      },
+      {
+        "name": "contact@thefashioncoterie.com",
+        "count": 1
+      },
+      {
+        "name": "ALEE",
+        "count": 1
+      }
+    ],
+    "ship_days": [
+      {
+        "days": "2-6",
+        "count": 3
+      },
+      {
+        "days": "8-15",
+        "count": 2
+      }
+    ],
+    "samples": [
+      {
+        "ship_usd": 195.2,
+        "weight_kg": 24.5,
+        "product": "2木衣架",
+        "days": "10-13",
+        "line": "contact@thefashioncoterie.com"
+      },
+      {
+        "ship_usd": 123.6,
+        "weight_kg": 19.5,
+        "product": "Rose Gold  23CM OVAL TRAY 100個",
+        "days": "2-6",
+        "line": "A-LEE"
+      },
+      {
+        "ship_usd": 140.0,
+        "weight_kg": 0,
+        "product": "Rose Gold  23CM OVAL TRAY 70個",
+        "days": "2-6",
+        "line": ""
+      },
+      {
+        "ship_usd": 140.0,
+        "weight_kg": 6.5,
+        "product": "Rose Gold  23CM OVAL TRAY 50 個",
+        "days": "2-6",
+        "line": "A-LEE"
+      },
+      {
+        "ship_usd": 124.5,
+        "weight_kg": 40.5,
+        "product": "貝貝:   500支 沙色訂製木單夾",
+        "days": "14-18",
+        "line": "ALEE"
+      },
+      {
+        "ship_usd": 5.0,
+        "weight_kg": 0,
+        "product": "100支 白色訂製木單夾",
+        "days": "8-15",
+        "line": ""
+      },
+      {
+        "ship_usd": 5.0,
+        "weight_kg": 0,
+        "product": "100支 白色訂製木單夾 + 10支",
+        "days": "8-15",
+        "line": ""
+      },
+      {
+        "ship_usd": 5.0,
+        "weight_kg": 0,
+        "product": "100支 白色訂製木單夾 + 10支",
+        "days": "7-10",
+        "line": ""
+      },
+      {
+        "ship_usd": 213.0,
+        "weight_kg": 0,
+        "product": "HE1023/透單夾  100PCS",
+        "days": "",
+        "line": ""
+      },
+      {
+        "ship_usd": 1.0,
+        "weight_kg": 0,
+        "product": "2支",
+        "days": "",
+        "line": ""
+      }
+    ]
+  },
+  "UK": {
+    "count": 15,
+    "min_ship": 17.6,
+    "max_ship": 354.2,
+    "avg_ship": 126.46,
+    "avg_weight": 10.466666666666667,
+    "avg_rate_per_kg": 15.094882436529332,
+    "ship_lines": [
+      {
+        "name": "全球普货DDP专线 标准",
+        "count": 6
+      },
+      {
+        "name": "A-LEE",
+        "count": 2
+      },
+      {
+        "name": "改成-> ALEE",
+        "count": 1
+      }
+    ],
+    "ship_days": [
+      {
+        "days": "12-16",
+        "count": 2
+      },
+      {
+        "days": "5-9",
+        "count": 2
+      }
+    ],
+    "samples": [
+      {
+        "ship_usd": 42.2,
+        "weight_kg": 3.6,
+        "product": "50 透單夾",
+        "days": "",
+        "line": "全球普货DDP专线 标准"
+      },
+      {
+        "ship_usd": 25.3,
+        "weight_kg": 1.6,
+        "product": "50 透單夾",
+        "days": "",
+        "line": "全球普货DDP专线 标准"
+      },
+      {
+        "ship_usd": 39.0,
+        "weight_kg": 1.6,
+        "product": "不要 50 透單夾  改為3色  包架用掛髮",
+        "days": "",
+        "line": "改成-> ALEE"
+      },
+      {
+        "ship_usd": 45.7,
+        "weight_kg": 0,
+        "product": "23CM   30 pcs",
+        "days": "",
+        "line": "全球普货DDP专线标准"
+      },
+      {
+        "ship_usd": 203.6,
+        "weight_kg": 18.0,
+        "product": "透單夾金勾 BEN報  100 PCS  / 200 PCS",
+        "days": "",
+        "line": "杨先生"
+      },
+      {
+        "ship_usd": 337.4,
+        "weight_kg": 0,
+        "product": "透單夾金勾 BEN報   新運費 200 PCS",
+        "days": "",
+        "line": "欧美专线"
+      },
+      {
+        "ship_usd": 207.8,
+        "weight_kg": 6.0,
+        "product": "透單夾金勾 BEN報   新運費 100 PCS",
+        "days": "8-12",
+        "line": "阿里物流:"
+      },
+      {
+        "ship_usd": 254.0,
+        "weight_kg": 18.0,
+        "product": "1000支  金內衣架",
+        "days": "",
+        "line": "A-LEE"
+      },
+      {
+        "ship_usd": 354.2,
+        "weight_kg": 22.2,
+        "product": "10-02 改成 2000支 金內衣架  浙江 浦江县 恒耀",
+        "days": "",
+        "line": "A-LEE"
+      },
+      {
+        "ship_usd": 32.1,
+        "weight_kg": 0,
+        "product": "貝殼陶瓷小盤 樣品",
+        "days": "7-11",
+        "line": "Express-HK IP 优选"
+      }
+    ]
+  },
+  "USA": {
+    "count": 98,
+    "min_ship": 20.0,
+    "max_ship": 2082.3,
+    "avg_ship": 211.75775510204085,
+    "avg_weight": 21.608955223880592,
+    "avg_rate_per_kg": 16.4458219921847,
+    "ship_lines": [
+      {
+        "name": "中美快船 优选",
+        "count": 7
+      },
+      {
+        "name": "ALEE",
+        "count": 7
+      },
+      {
+        "name": "A-LEE",
+        "count": 5
+      }
+    ],
+    "ship_days": [
+      {
+        "days": "15-25",
+        "count": 3
+      },
+      {
+        "days": "25-35",
+        "count": 3
+      }
+    ],
+    "samples": [
+      {
+        "ship_usd": 53.0,
+        "weight_kg": 17.0,
+        "product": "",
+        "days": "24-30",
+        "line": "刀具专线 经济"
+      },
+      {
+        "ship_usd": 134.5,
+        "weight_kg": 0,
+        "product": "",
+        "days": "12-15",
+        "line": "A-LEE"
+      },
+      {
+        "ship_usd": 63.8,
+        "weight_kg": 21.4,
+        "product": "改50不織布 +50髮夾",
+        "days": "15-25",
+        "line": "中美快船 优选"
+      },
+      {
+        "ship_usd": 250.4,
+        "weight_kg": 21.4,
+        "product": "300小髮袋 + 300小黑單夾/黑勾",
+        "days": "",
+        "line": "刀具专线 经济"
+      },
+      {
+        "ship_usd": 2082.3,
+        "weight_kg": 0,
+        "product": "3000支黑仿木 PP 衣架",
+        "days": "",
+        "line": "锦意国际物流有限公司"
+      },
+      {
+        "ship_usd": 361.0,
+        "weight_kg": 48.5,
+        "product": "100 成人用品架 壓克力架",
+        "days": "",
+        "line": "香港UPS直发包税H价/6000(免住宅,不免偏远)"
+      },
+      {
+        "ship_usd": 92.7,
+        "weight_kg": 9.9,
+        "product": "50粉23CM+ 50透單",
+        "days": "10-15",
+        "line": "ALEE"
+      },
+      {
+        "ship_usd": 92.7,
+        "weight_kg": 0,
+        "product": "50粉23CM+ 50透單",
+        "days": "10-15",
+        "line": ""
+      },
+      {
+        "ship_usd": 175.5,
+        "weight_kg": 122.0,
+        "product": "色丁 黑髮袋 1000個 暫定 印白色LOGO",
+        "days": "",
+        "line": "ALEE"
+      },
+      {
+        "ship_usd": 191.0,
+        "weight_kg": 105.0,
+        "product": "色丁 黑髮袋 1000個 暫定 印白色LOGO",
+        "days": "",
+        "line": "材積52KG去算"
+      }
+    ]
+  }
+}

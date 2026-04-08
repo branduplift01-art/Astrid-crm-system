@@ -1,0 +1,2190 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>業務報價 CRM 系統</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+/* ===== LOGIN SCREEN ===== */
+#login-screen { display:flex; position:fixed; inset:0; background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%); z-index:9999; justify-content:center; align-items:center; }
+.login-card { background:white; border-radius:16px; padding:40px; width:380px; box-shadow:0 20px 60px rgba(0,0,0,0.4); }
+.login-logo { text-align:center; margin-bottom:28px; }
+.login-logo .login-icon { font-size:36px; margin-bottom:8px; }
+.login-logo h2 { font-size:22px; font-weight:700; color:#1a1a2e; margin-bottom:4px; }
+.login-logo p { font-size:13px; color:#888; }
+.login-field { margin-bottom:14px; }
+.login-field label { display:block; font-size:12px; color:#666; margin-bottom:6px; font-weight:500; }
+.login-field input { width:100%; padding:10px 14px; border:1.5px solid #e0e0e0; border-radius:8px; font-size:14px; transition:border-color 0.2s; }
+.login-field input:focus { outline:none; border-color:#1a1a2e; }
+.login-btn { width:100%; padding:12px; background:linear-gradient(135deg,#1a1a2e 0%,#0f3460 100%); color:white; border:none; border-radius:8px; font-size:15px; font-weight:600; cursor:pointer; margin-top:6px; transition:opacity 0.2s; }
+.login-btn:hover { opacity:0.88; }
+.login-btn:disabled { opacity:0.5; cursor:not-allowed; }
+.login-error { color:#ea4335; font-size:12px; text-align:center; margin-top:10px; min-height:18px; }
+.login-hint { text-align:center; margin-top:14px; font-size:11px; color:#bbb; }
+
+/* ===== USER BADGE ===== */
+.user-badge { display:flex; align-items:center; gap:10px; }
+.user-badge .role-tag { background:rgba(255,255,255,0.18); padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; }
+.user-badge .role-tag.admin { background:#f9ab00; color:#1a1a2e; }
+.user-badge .user-name { font-size:12px; opacity:0.85; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.logout-btn { background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.3); color:white; padding:4px 12px; border-radius:6px; font-size:12px; cursor:pointer; transition:background 0.2s; }
+.logout-btn:hover { background:rgba(255,255,255,0.22); }
+
+/* ===== MAIN APP ===== */
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: 'Segoe UI', -apple-system, sans-serif; background: #f0f2f5; color: #1a1a2e; min-height: 100vh; }
+
+.app-header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: white; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+.app-header h1 { font-size: 20px; font-weight: 600; }
+.app-header .subtitle { font-size: 12px; opacity: 0.7; }
+
+.main { max-width: 1200px; margin: 0 auto; padding: 20px; }
+
+.tabs { display: flex; gap: 4px; margin-bottom: 20px; background: white; border-radius: 12px; padding: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.tab { flex:1; padding: 10px 16px; border: none; background: transparent; cursor: pointer; border-radius: 8px; font-size: 14px; font-weight: 500; color: #666; transition: all 0.2s; }
+.tab.active { background: #1a1a2e; color: white; }
+.tab:hover:not(.active) { background: #f0f2f5; }
+
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+.card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.card h2 { font-size: 16px; font-weight: 600; margin-bottom: 16px; color: #1a1a2e; display: flex; align-items: center; gap: 8px; }
+.card h2 .icon { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+
+.row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.field { flex: 1; min-width: 140px; }
+.field label { display: block; font-size: 12px; color: #888; margin-bottom: 4px; font-weight: 500; }
+.field input, .field select, .field textarea { width: 100%; padding: 8px 12px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 14px; transition: border-color 0.2s; background: #fafafa; }
+.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: #1a1a2e; background: white; }
+.field textarea { resize: vertical; min-height: 60px; font-family: inherit; }
+
+.product-item { border: 1px solid #e8e8e8; border-radius: 10px; padding: 16px; margin-bottom: 12px; background: #fafbfc; }
+.product-item .product-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.product-item .product-num { font-weight: 600; font-size: 14px; color: #1a1a2e; }
+.product-item .calculated-price { font-size: 13px; color: #0f9d58; font-weight: 600; }
+
+.btn { padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.2s; }
+.btn-primary { background: #1a1a2e; color: white; }
+.btn-primary:hover { background: #16213e; transform: translateY(-1px); }
+.btn-success { background: #0f9d58; color: white; }
+.btn-success:hover { background: #0b8043; }
+.btn-danger { background: #ea4335; color: white; font-size: 12px; padding: 4px 10px; }
+.btn-danger:hover { background: #d33426; }
+.btn-outline { background: transparent; border: 1px dashed #ccc; color: #666; }
+.btn-outline:hover { border-color: #1a1a2e; color: #1a1a2e; }
+.btn-copy { background: #4285f4; color: white; }
+.btn-copy:hover { background: #3367d6; }
+.btn-sm { font-size: 11px; padding: 4px 10px; }
+.btn-warn { background: #f9ab00; color: white; }
+
+.add-product-btn { width: 100%; padding: 12px; margin-top: 8px; }
+
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.summary-item { background: #f8f9fa; border-radius: 8px; padding: 12px; text-align: center; }
+.summary-item .label { font-size: 11px; color: #888; margin-bottom: 4px; }
+.summary-item .value { font-size: 20px; font-weight: 700; }
+.summary-item .value.green { color: #0f9d58; }
+.summary-item .value.blue { color: #4285f4; }
+.summary-item .value.orange { color: #f9ab00; }
+
+.quote-output { background: #1a1a2e; color: #e0e0e0; border-radius: 10px; padding: 20px; font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.6; white-space: pre-wrap; position: relative; min-height: 200px; }
+.quote-output .copy-btn { position: absolute; top: 10px; right: 10px; }
+
+.internal-note { background: #fff8e1; border: 1px solid #ffe082; border-radius: 10px; padding: 16px; font-size: 13px; line-height: 1.6; }
+.internal-note h3 { color: #f57f17; margin-bottom: 8px; font-size: 14px; }
+
+.tier-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tier-table th, .tier-table td { padding: 6px 10px; border: 1px solid #e8e8e8; text-align: center; }
+.tier-table th { background: #f0f2f5; font-weight: 600; font-size: 12px; }
+
+/* Shipping reference panel */
+.ship-ref { background: #e3f2fd; border: 1px solid #90caf9; border-radius: 10px; padding: 16px; margin-top: 12px; }
+.ship-ref h3 { font-size: 14px; color: #1565c0; margin-bottom: 10px; }
+.ship-ref-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-bottom: 10px; }
+.ship-ref-stat { background: white; border-radius: 6px; padding: 8px; text-align: center; }
+.ship-ref-stat .sr-label { font-size: 10px; color: #888; }
+.ship-ref-stat .sr-val { font-size: 16px; font-weight: 700; color: #1565c0; }
+.ship-ref-lines { font-size: 12px; color: #555; }
+.ship-ref-lines .line-tag { display: inline-block; background: #bbdefb; padding: 2px 8px; border-radius: 4px; margin: 2px; font-size: 11px; }
+.ship-ref-samples { margin-top: 8px; }
+.ship-ref-samples table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.ship-ref-samples th { background: #bbdefb; padding: 4px 6px; text-align: left; font-weight: 600; }
+.ship-ref-samples td { padding: 4px 6px; border-bottom: 1px solid #e0e0e0; }
+.ship-ref-samples .use-btn { background: #1565c0; color: white; border: none; padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 10px; }
+
+.logo-item { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+
+/* ============================================================ */
+/* CRM REDESIGNED STYLES */
+/* ============================================================ */
+
+/* CRM Sub-tabs */
+.crm-subtabs { display: flex; gap: 4px; margin-bottom: 16px; background: #f0f2f5; border-radius: 10px; padding: 3px; }
+.crm-subtab { flex: 1; padding: 8px 12px; border: none; background: transparent; cursor: pointer; border-radius: 8px; font-size: 13px; font-weight: 500; color: #666; transition: all 0.2s; text-align: center; }
+.crm-subtab.active { background: white; color: #1a1a2e; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.crm-subtab:hover:not(.active) { color: #1a1a2e; }
+.crm-subpanel { display: none; }
+.crm-subpanel.active { display: block; }
+
+/* Dashboard stats */
+.dashboard-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.dash-stat { background: white; border-radius: 10px; padding: 14px; text-align: center; border: 1px solid #e8e8e8; }
+.dash-stat .ds-value { font-size: 24px; font-weight: 700; }
+.dash-stat .ds-label { font-size: 11px; color: #888; margin-top: 2px; }
+.dash-stat.urgent .ds-value { color: #ea4335; }
+.dash-stat.today .ds-value { color: #f9ab00; }
+.dash-stat.active .ds-value { color: #4285f4; }
+.dash-stat.money .ds-value { color: #0f9d58; }
+
+/* CRM filters */
+.crm-filters { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+.crm-filter-btn { padding: 5px 12px; border: 1px solid #e0e0e0; border-radius: 20px; background: white; cursor: pointer; font-size: 12px; transition: all 0.2s; }
+.crm-filter-btn.active { background: #1a1a2e; color: white; border-color: #1a1a2e; }
+.crm-filter-btn .badge { display: inline-block; background: rgba(255,255,255,0.3); padding: 0 6px; border-radius: 10px; margin-left: 4px; font-size: 11px; }
+.crm-filter-btn.active .badge { background: rgba(255,255,255,0.3); }
+.crm-filter-btn:not(.active) .badge { background: #e8e8e8; }
+
+/* Sorting bar */
+.crm-sort-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; font-size: 12px; color: #888; }
+.crm-sort-bar select { padding: 4px 8px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 12px; }
+
+/* Enhanced customer card */
+.customer-card { border: 1px solid #e8e8e8; border-radius: 10px; padding: 14px; margin-bottom: 10px; transition: all 0.2s; }
+.customer-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.customer-card.overdue { border-left: 3px solid #ea4335; }
+.customer-card.due-today { border-left: 3px solid #f9ab00; }
+.customer-card.due-soon { border-left: 3px solid #4285f4; }
+
+.cc-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+.cc-name { font-weight: 600; font-size: 15px; }
+.cc-country { font-size: 12px; color: #888; }
+.cc-stars { color: #f9ab00; cursor: pointer; font-size: 16px; letter-spacing: 1px; user-select: none; }
+.cc-meta { display: flex; gap: 10px; font-size: 12px; color: #666; margin-bottom: 6px; flex-wrap: wrap; align-items: center; }
+
+.cc-tag { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; background: #e8eaf6; color: #3949ab; }
+.cc-followup { font-size: 12px; padding: 2px 8px; border-radius: 4px; font-weight: 500; }
+.cc-followup.overdue { background: #ffebee; color: #c62828; }
+.cc-followup.today { background: #fff8e1; color: #e65100; }
+.cc-followup.upcoming { background: #e8f5e9; color: #2e7d32; }
+.cc-followup.nodate { background: #f5f5f5; color: #999; }
+
+.cc-status-note { font-size: 12px; color: #555; margin: 6px 0; padding: 6px 10px; background: #f8f9fa; border-radius: 6px; line-height: 1.5; white-space: pre-wrap; }
+
+/* Status tags */
+.status-tag { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+.status-inquiry { background: #f3e5f5; color: #7b1fa2; }
+.status-sample { background: #e3f2fd; color: #1565c0; }
+.status-quoted { background: #fff3e0; color: #e65100; }
+.status-following { background: #fce4ec; color: #c62828; }
+.status-pending_payment { background: #fff8e1; color: #f57f17; }
+.status-in_production { background: #e0f2f1; color: #00695c; }
+.status-shipped { background: #e8f5e9; color: #2e7d32; }
+.status-completed { background: #e8eaf6; color: #283593; }
+
+.timeline { margin-top: 8px; padding-left: 16px; border-left: 2px solid #e0e0e0; }
+.timeline-item { margin-bottom: 8px; padding-left: 12px; position: relative; }
+.timeline-item::before { content: ''; position: absolute; left: -21px; top: 4px; width: 8px; height: 8px; border-radius: 50%; background: #1a1a2e; }
+.timeline-item .tl-date { font-size: 11px; color: #999; }
+.timeline-item .tl-text { font-size: 13px; }
+.timeline-item .tl-quote { font-size: 11px; color: #0f9d58; }
+
+.note-input { display: flex; gap: 8px; margin-top: 8px; }
+.note-input input { flex: 1; padding: 6px 10px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 13px; }
+
+/* Edit modal */
+.modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; justify-content: center; align-items: center; }
+.modal-overlay.show { display: flex; }
+.modal { background: white; border-radius: 14px; padding: 24px; max-width: 500px; width: 90%; max-height: 85vh; overflow-y: auto; }
+.modal h3 { font-size: 16px; margin-bottom: 16px; }
+
+/* ============================================================ */
+/* ORDER TRACKING STYLES */
+/* ============================================================ */
+.order-pipeline { display: flex; gap: 4px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; }
+.order-stage { flex: 1; min-width: 100px; text-align: center; padding: 8px 4px; border-radius: 8px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s; border: 1px solid #e0e0e0; background: white; }
+.order-stage.active { background: #1a1a2e; color: white; border-color: #1a1a2e; }
+.order-stage .os-count { display: block; font-size: 18px; font-weight: 700; margin-bottom: 2px; }
+
+.order-card { border: 1px solid #e8e8e8; border-radius: 10px; padding: 14px; margin-bottom: 10px; }
+.order-card .oc-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+.order-card .oc-name { font-weight: 600; font-size: 14px; }
+.order-card .oc-product { font-size: 13px; color: #555; margin-bottom: 6px; }
+.order-card .oc-checks { display: flex; gap: 12px; margin: 8px 0; }
+.order-card .oc-check { display: flex; align-items: center; gap: 4px; font-size: 12px; }
+.order-card .oc-check input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
+.order-card .oc-field { font-size: 12px; color: #666; margin: 3px 0; }
+.order-card .oc-field strong { color: #333; }
+.order-card .oc-notes { font-size: 12px; color: #555; background: #f8f9fa; padding: 6px 10px; border-radius: 6px; margin-top: 6px; white-space: pre-wrap; line-height: 1.5; }
+.order-card .oc-tracking { display: inline-flex; align-items: center; gap: 4px; background: #e3f2fd; padding: 2px 8px; border-radius: 4px; font-size: 12px; color: #1565c0; cursor: pointer; }
+
+/* ============================================================ */
+/* TOOLS PANEL STYLES */
+/* ============================================================ */
+.tool-section { margin-bottom: 20px; }
+.tool-section h3 { font-size: 14px; font-weight: 600; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #e8e8e8; }
+.tool-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid #e8e8e8; border-radius: 8px; margin-bottom: 6px; }
+.tool-item .ti-name { flex: 1; font-size: 13px; font-weight: 500; }
+.tool-item .ti-url { flex: 2; font-size: 11px; color: #888; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.template-item { border: 1px solid #e8e8e8; border-radius: 8px; padding: 10px 12px; margin-bottom: 6px; }
+.template-item .tmpl-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #1a1a2e; }
+.template-item .tmpl-content { font-size: 12px; color: #555; white-space: pre-wrap; line-height: 1.5; max-height: 60px; overflow: hidden; }
+.template-item.expanded .tmpl-content { max-height: none; }
+
+.empty-state { text-align: center; padding: 40px; color: #999; }
+.empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+
+.toast { position: fixed; bottom: 20px; right: 20px; background: #323232; color: white; padding: 12px 20px; border-radius: 8px; font-size: 13px; opacity: 0; transform: translateY(10px); transition: all 0.3s; z-index: 1000; }
+.toast.show { opacity: 1; transform: translateY(0); }
+
+@media (max-width: 768px) {
+  .row { flex-direction: column; }
+  .field { min-width: 100%; }
+  .dashboard-stats { grid-template-columns: repeat(2, 1fr); }
+  .order-pipeline { flex-wrap: wrap; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===== LOGIN SCREEN ===== -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-icon">📊</div>
+      <h2>業務報價 CRM 系統</h2>
+      <p>請登入以繼續使用</p>
+    </div>
+    <div class="login-field">
+      <label>電子郵件</label>
+      <input type="email" id="login-email" placeholder="your@email.com" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <div class="login-field">
+      <label>密碼</label>
+      <input type="password" id="login-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="login-btn" id="login-btn" onclick="doLogin()">登入</button>
+    <div class="login-error" id="login-error"></div>
+    <div class="login-hint">如需帳號請聯絡管理者</div>
+  </div>
+</div>
+
+<!-- ===== APP CONTAINER ===== -->
+<div id="app-container" style="display:none;">
+<div class="app-header">
+  <div>
+    <h1>業務報價 CRM 系統</h1>
+    <div class="subtitle">Quotation & Customer Management</div>
+  </div>
+  <div class="user-badge">
+    <span class="role-tag" id="user-role-badge">載入中</span>
+    <span class="user-name" id="user-info"></span>
+    <button class="logout-btn" onclick="doLogout()">登出</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('quote')">建立報價</button>
+    <button class="tab" onclick="switchTab('crm')">客戶管理 CRM</button>
+    <button class="tab admin-only" onclick="switchTab('settings')">匯率 / 設定</button>
+  </div>
+
+  <!-- ===== 建立報價 TAB ===== -->
+  <div id="tab-quote" class="tab-content active">
+
+    <div class="card">
+      <h2><span class="icon" style="background:#e3f2fd;">👤</span> 客戶資訊</h2>
+      <div class="row">
+        <div class="field" style="flex:2"><label>客戶名稱</label><input id="customerName" placeholder="e.g. Maree Alexis"></div>
+        <div class="field">
+          <label>國家</label>
+          <select id="customerCountry" onchange="onCountryChange()">
+            <option value="">-- 選擇國家 --</option>
+          </select>
+        </div>
+        <div class="field"><label>郵遞區號</label><input id="customerPostcode" placeholder="e.g. 3075"></div>
+      </div>
+      <div class="row">
+        <div class="field" style="flex:2"><label>收件地址</label><input id="customerAddress" placeholder="完整收件地址"></div>
+        <div class="field"><label>聯絡電話</label><input id="customerPhone" placeholder="電話號碼"></div>
+        <div class="field"><label>Email</label><input id="customerEmail" placeholder="email@example.com"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="icon" style="background:#fce4ec;">📦</span> 產品報價</h2>
+      <div id="products-list"></div>
+      <button class="btn btn-outline add-product-btn" onclick="addProduct()">+ 新增產品</button>
+    </div>
+
+    <div class="card">
+      <h2><span class="icon" style="background:#fff3e0;">🏷️</span> LOGO / 附加費用</h2>
+      <div id="logo-list"></div>
+      <button class="btn btn-outline" onclick="addLogo()" style="margin-top:8px;">+ 新增 LOGO 費</button>
+    </div>
+
+    <div class="card">
+      <h2><span class="icon" style="background:#e8f5e9;">🚚</span> 運費</h2>
+      <div class="row">
+        <div class="field"><label>運費 (USD)</label><input id="shippingUSD" type="number" step="0.1" value="0" oninput="recalc()"></div>
+        <div class="field"><label>運費 (RMB) — 自動換算</label><input id="shippingRMB" type="number" step="0.1" placeholder="輸入RMB自動換算" oninput="calcShipFromRMB()"></div>
+        <div class="field"><label>運費加成倍率</label><input id="shippingMarkup" type="number" step="0.01" value="1.2" oninput="calcShipFromRMB()"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>貨運方式</label>
+          <select id="shippingMethod">
+            <option value="">-- 選擇貨運方式 --</option>
+          </select>
+        </div>
+        <div class="field"><label>運送天數</label><input id="shippingDays" placeholder="e.g. 6-9 work days"></div>
+        <div class="field"><label>生產天數</label><input id="productionDays" placeholder="e.g. 7-15 days"></div>
+      </div>
+      <div id="ship-ref-panel" class="ship-ref" style="display:none;"></div>
+    </div>
+
+    <div class="card">
+      <h2><span class="icon" style="background:#e8eaf6;">📊</span> 報價總覽</h2>
+      <div class="summary-grid">
+        <div class="summary-item"><div class="label">產品總金額 (USD)</div><div class="value blue" id="sum-products">$0.00</div></div>
+        <div class="summary-item"><div class="label">LOGO費用 (USD)</div><div class="value orange" id="sum-logo">$0.00</div></div>
+        <div class="summary-item"><div class="label">運費 (USD)</div><div class="value" id="sum-shipping">$0.00</div></div>
+        <div class="summary-item"><div class="label">報價總金額 (USD)</div><div class="value green" id="sum-total" style="font-size:24px;">$0.00</div></div>
+      </div>
+      <div class="internal-note" style="margin-bottom:16px;">
+        <h3>內部利潤分析（不顯示給客戶）</h3>
+        <div class="summary-grid" style="margin-top:8px;">
+          <div class="summary-item" style="background:#fff8e1;"><div class="label">總成本 (RMB)</div><div class="value" id="sum-cost-rmb" style="font-size:16px;">¥0.00</div></div>
+          <div class="summary-item" style="background:#fff8e1;"><div class="label">報價總額轉RMB</div><div class="value" id="sum-total-rmb" style="font-size:16px;">¥0.00</div></div>
+          <div class="summary-item" style="background:#fff8e1;"><div class="label">利潤 (RMB)</div><div class="value green" id="sum-profit-rmb" style="font-size:16px;">¥0.00</div></div>
+          <div class="summary-item" style="background:#fff8e1;"><div class="label">平均利潤 %</div><div class="value green" id="sum-profit-pct" style="font-size:16px;">0%</div></div>
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-success" onclick="generateQuote()" style="flex:1;padding:12px;">產生報價單（客戶版）</button>
+        <button class="btn btn-primary" onclick="saveQuoteAndCRM()" style="padding:12px;">儲存報價 + 建立客戶</button>
+        <button class="btn btn-warn" onclick="resetQuoteForm()" style="padding:12px;">清空 / 新報價</button>
+      </div>
+    </div>
+
+    <div class="card" id="quote-output-card" style="display:none;">
+      <h2><span class="icon" style="background:#e8f5e9;">📋</span> 報價單輸出（可直接複製給客戶）</h2>
+      <div class="quote-output" id="quote-output">
+        <button class="btn btn-copy copy-btn" onclick="copyQuote()">複製報價</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button class="btn btn-primary" onclick="exportPDF()" style="flex:1;padding:10px;">📄 匯出 PDF 報價單</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== CRM TAB (REDESIGNED) ===== -->
+  <div id="tab-crm" class="tab-content">
+
+    <!-- Dashboard Stats -->
+    <div class="dashboard-stats" id="crm-dashboard"></div>
+
+    <!-- Sub-tabs -->
+    <div class="crm-subtabs">
+      <button class="crm-subtab active" onclick="switchCRMSub('customers')">客戶總覽</button>
+      <button class="crm-subtab" onclick="switchCRMSub('orders')">訂單追蹤</button>
+      <button class="crm-subtab" onclick="switchCRMSub('stats')">統計報表</button>
+      <button class="crm-subtab" onclick="switchCRMSub('tools')">業務工具</button>
+    </div>
+
+    <!-- Sub-panel: 客戶總覽 -->
+    <div id="crm-sub-customers" class="crm-subpanel active">
+      <div class="card">
+        <div class="crm-filters" id="crm-filters"></div>
+        <div class="crm-sort-bar">
+          <input id="crm-search" placeholder="搜尋客戶名稱、國家、標籤..." style="flex:1;padding:6px 10px;border:1px solid #e0e0e0;border-radius:8px;font-size:13px;" oninput="renderCRM()">
+          <select id="crm-sort" onchange="renderCRM()" style="padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;">
+            <option value="followup">按追單日排序</option>
+            <option value="importance">按重要性排序</option>
+            <option value="name">按名稱排序</option>
+            <option value="newest">按建立時間排序</option>
+          </select>
+        </div>
+        <div id="crm-list"></div>
+      </div>
+    </div>
+
+    <!-- Sub-panel: 訂單追蹤 -->
+    <div id="crm-sub-orders" class="crm-subpanel">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <h2 style="margin-bottom:0;"><span class="icon" style="background:#e0f2f1;">📦</span> 訂單管道</h2>
+          <button class="btn btn-primary btn-sm" onclick="showNewOrderModal()">+ 新增訂單</button>
+        </div>
+        <div class="order-pipeline" id="order-pipeline"></div>
+        <div id="order-list"></div>
+      </div>
+    </div>
+
+    <!-- Sub-panel: 統計報表 -->
+    <div id="crm-sub-stats" class="crm-subpanel">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <h2 style="margin-bottom:0;"><span class="icon" style="background:#e8eaf6;">📊</span> 業績統計報表</h2>
+          <select id="stats-period" onchange="renderStats()" style="padding:6px 10px;border:1px solid #e0e0e0;border-radius:8px;font-size:13px;">
+            <option value="weekly">按週統計</option>
+            <option value="monthly" selected>按月統計</option>
+            <option value="quarterly">按季統計</option>
+          </select>
+        </div>
+        <div class="dashboard-stats" style="margin-bottom:20px;" id="stats-summary"></div>
+      </div>
+
+      <div class="card">
+        <h2><span class="icon" style="background:#e3f2fd;">💰</span> 報價金額趨勢</h2>
+        <canvas id="chart-revenue" height="250" style="width:100%;"></canvas>
+      </div>
+
+      <div class="card">
+        <h2><span class="icon" style="background:#fce4ec;">📋</span> 報價次數趨勢</h2>
+        <canvas id="chart-count" height="250" style="width:100%;"></canvas>
+      </div>
+
+      <div class="card" style="display:flex;gap:16px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:280px;">
+          <h2><span class="icon" style="background:#e0f2f1;">🌍</span> 國家分佈</h2>
+          <canvas id="chart-country" height="250"></canvas>
+        </div>
+        <div style="flex:1;min-width:280px;">
+          <h2><span class="icon" style="background:#fff3e0;">📦</span> 產品分佈</h2>
+          <canvas id="chart-product" height="250"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sub-panel: 業務工具 -->
+    <div id="crm-sub-tools" class="crm-subpanel">
+      <div class="card">
+        <h2><span class="icon" style="background:#e8eaf6;">🔗</span> 產品連結快速複製</h2>
+        <div id="product-links-list"></div>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <input id="new-link-name" placeholder="產品名稱" style="flex:1;padding:6px 10px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;">
+          <input id="new-link-url" placeholder="Alibaba 連結" style="flex:2;padding:6px 10px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;">
+          <button class="btn btn-primary btn-sm" onclick="addProductLink()">新增</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2><span class="icon" style="background:#fff3e0;">💬</span> 應答樣板</h2>
+        <div id="response-templates-list"></div>
+        <div style="margin-top:8px;">
+          <div class="row">
+            <div class="field"><label>樣板標題</label><input id="new-tmpl-title" placeholder="e.g. 問數量"></div>
+          </div>
+          <div class="row">
+            <div class="field"><label>樣板內容</label><textarea id="new-tmpl-content" placeholder="輸入英文回覆範本..." rows="3"></textarea></div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="addResponseTemplate()">新增樣板</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 設定 TAB ===== -->
+  <div id="tab-settings" class="tab-content">
+    <div class="card">
+      <h2><span class="icon" style="background:#fff3e0;">💱</span> 匯率設定</h2>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <div class="field" style="min-width:120px;flex:none;"><label>1 RMB = ? TWD</label><input id="rate-rmb-twd" type="number" step="0.01" value="4.75" onchange="saveSettings();recalc();"></div>
+        <div class="field" style="min-width:120px;flex:none;"><label>1 USD = ? TWD</label><input id="rate-usd-twd" type="number" step="0.1" value="30.5" onchange="saveSettings();recalc();"></div>
+        <div class="field" style="min-width:120px;flex:none;"><label>1 USD = ? RMB</label><input id="rate-usd-rmb" type="number" step="0.0001" value="7.2453" onchange="saveSettings();recalc();"></div>
+      </div>
+      <p style="font-size:11px;color:#999;margin-top:8px;">匯率會影響所有報價計算，請定期更新</p>
+    </div>
+
+    <div class="card">
+      <h2><span class="icon" style="background:#e8eaf6;">📐</span> 數量級距利潤表</h2>
+      <p style="font-size:12px;color:#888;margin-bottom:12px;">成本比率 = 成本佔售價的比例。例如 0.5 代表成本佔售價50%，利潤50%</p>
+      <table class="tier-table"><thead><tr><th>數量範圍</th><th>成本比率</th><th>利潤 %</th><th>操作</th></tr></thead><tbody id="tier-body"></tbody></table>
+      <button class="btn btn-outline" onclick="addTier()" style="margin-top:8px;">+ 新增級距</button>
+    </div>
+
+    <div class="card">
+      <h2><span class="icon" style="background:#fce4ec;">📁</span> 常用產品範本</h2>
+      <p style="font-size:12px;color:#888;margin-bottom:12px;">預設常用產品，報價時可快速選取</p>
+      <div id="templates-list"></div>
+      <button class="btn btn-outline" onclick="addTemplate()" style="margin-top:8px;">+ 新增產品範本</button>
+    </div>
+
+    <div class="card">
+      <h2><span class="icon" style="background:#e3f2fd;">🏢</span> 公司資訊</h2>
+      <div class="row">
+        <div class="field" style="flex:2"><label>公司名稱（英文）</label><input id="companyName" value="" onchange="saveSettings()"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Customer Modal -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <h3 id="edit-modal-title">編輯客戶</h3>
+    <div id="edit-modal-body"></div>
+    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
+      <button class="btn btn-outline" onclick="closeModal('edit-modal')">取消</button>
+      <button class="btn btn-primary" id="edit-modal-save">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- New Order Modal -->
+<div class="modal-overlay" id="order-modal">
+  <div class="modal">
+    <h3 id="order-modal-title">新增訂單</h3>
+    <div id="order-modal-body"></div>
+    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
+      <button class="btn btn-outline" onclick="closeModal('order-modal')">取消</button>
+      <button class="btn btn-primary" id="order-modal-save">儲存</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+</div><!-- end #app-container -->
+
+<script>
+// ============================================================
+// ★ SUPABASE 設定 — 請填入你的 Project URL 和 Anon Key
+// ============================================================
+const SUPABASE_URL  = 'https://rybvzhpcaxmufzepnxaz.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ5YnZ6aHBjYXhtdWZ6ZXBueGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0ODA2NTIsImV4cCI6MjA5MTA1NjY1Mn0.71c6s0tW8duu0ezohmzEFA02hFqxG5wPWcSSqt0XbTs';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+let currentUser = null;
+let currentRole  = 'user';
+
+// ============================================================
+// AUTH
+// ============================================================
+async function checkAuth() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    currentUser = session.user;
+    await loadUserRole();
+    showApp();
+    await init();
+  } else {
+    document.getElementById('login-screen').style.display = 'flex';
+  }
+}
+
+async function loadUserRole() {
+  const { data } = await sb.from('user_profiles')
+    .select('role, display_name')
+    .eq('id', currentUser.id)
+    .single();
+  currentRole = data?.role || 'user';
+  const name = data?.display_name || currentUser.email;
+  document.getElementById('user-info').textContent = name;
+  const badge = document.getElementById('user-role-badge');
+  badge.textContent = currentRole === 'admin' ? '管理者' : '業務';
+  if (currentRole === 'admin') badge.classList.add('admin');
+}
+
+function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app-container').style.display = 'block';
+}
+
+function applyRoleUI() {
+  document.querySelectorAll('.admin-only').forEach(e => {
+    e.style.display = currentRole === 'admin' ? '' : 'none';
+  });
+}
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass   = document.getElementById('login-password').value;
+  const errEl  = document.getElementById('login-error');
+  const btn    = document.getElementById('login-btn');
+  errEl.textContent = '';
+  if (!email || !pass) { errEl.textContent = '請填入帳號與密碼'; return; }
+  btn.disabled = true; btn.textContent = '登入中...';
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+  btn.disabled = false; btn.textContent = '登入';
+  if (error) { errEl.textContent = '帳號或密碼錯誤，請重試'; return; }
+  currentUser = data.user;
+  await loadUserRole();
+  showApp();
+  await init();
+}
+
+async function doLogout() {
+  if (!confirm('確定要登出嗎？')) return;
+  await sb.auth.signOut();
+  location.reload();
+}
+
+// ============================================================
+// SUPABASE 資料存取
+// ============================================================
+async function dbSave(key, value) {
+  try {
+    await sb.from('app_data').upsert(
+      { key, value, updated_at: new Date().toISOString() },
+      { onConflict: 'key' }
+    );
+  } catch(e) { console.error('dbSave error:', key, e); }
+}
+
+async function dbLoad(key) {
+  try {
+    const { data } = await sb.from('app_data')
+      .select('value').eq('key', key).maybeSingle();
+    return data?.value ?? null;
+  } catch(e) { return null; }
+}
+
+// ============================================================
+// SHIPPING REFERENCE DATA
+// ============================================================
+let SHIP_DATA = {};
+fetch('shipping-data.json').then(r=>r.json()).then(d=>{SHIP_DATA=d; populateCountryDropdown(); populateShippingMethods();}).catch(()=>{populateCountryDropdown();});
+
+const COUNTRIES = [
+  {value:'Australia', label:'Australia 澳洲', zh:'澳洲'},
+  {value:'USA', label:'USA 美國', zh:'美國'},
+  {value:'Canada', label:'Canada 加拿大', zh:'加拿大'},
+  {value:'UK', label:'UK 英國', zh:'英國'},
+  {value:'France', label:'France 法國', zh:'法國'},
+  {value:'Germany', label:'Germany 德國', zh:'德國'},
+  {value:'Netherlands', label:'Netherlands 荷蘭', zh:'荷蘭'},
+  {value:'Sweden', label:'Sweden 瑞典', zh:'瑞典'},
+  {value:'Switzerland', label:'Switzerland 瑞士', zh:'瑞士'},
+  {value:'Spain', label:'Spain 西班牙', zh:'西班牙'},
+  {value:'Poland', label:'Poland 波蘭', zh:'波蘭'},
+  {value:'Norway', label:'Norway 挪威', zh:'挪威'},
+  {value:'Italy', label:'Italy 義大利', zh:'義大利'},
+  {value:'Austria', label:'Austria 奧地利', zh:'奧地利'},
+  {value:'India', label:'India 印度', zh:'印度'},
+  {value:'UAE', label:'UAE 阿聯酋', zh:'阿聯酋'},
+  {value:'Qatar', label:'Qatar 卡達', zh:'卡達'},
+  {value:'Saudi Arabia', label:'Saudi Arabia 沙烏地', zh:'沙烏地'},
+  {value:'Israel', label:'Israel 以色列', zh:'以色列'},
+  {value:'Singapore', label:'Singapore 新加坡', zh:'新加坡'},
+  {value:'Malaysia', label:'Malaysia 馬來西亞', zh:'馬來西亞'},
+  {value:'Japan', label:'Japan 日本', zh:'日本'},
+  {value:'Thailand', label:'Thailand 泰國', zh:'泰國'},
+  {value:'Vietnam', label:'Vietnam 越南', zh:'越南'},
+  {value:'Honduras', label:'Honduras 宏都拉斯', zh:'宏都拉斯'},
+  {value:'Brazil', label:'Brazil 巴西', zh:'巴西'},
+  {value:'Mexico', label:'Mexico 墨西哥', zh:'墨西哥'},
+  {value:'South Africa', label:'South Africa 南非', zh:'南非'},
+  {value:'Ghana', label:'Ghana 迦納', zh:'迦納'},
+  {value:'Ivory Coast', label:"Ivory Coast 象牙海岸", zh:'象牙海岸'},
+  {value:'Russia', label:'Russia 俄羅斯', zh:'俄羅斯'},
+  {value:'New Zealand', label:'New Zealand 紐西蘭', zh:'紐西蘭'},
+  {value:'Puerto Rico', label:'Puerto Rico 波多黎各', zh:'波多黎各'},
+  {value:'China (Domestic)', label:'China 中國境內', zh:'中國境內'},
+];
+
+function populateCountryDropdown() {
+  const sel = el('customerCountry');
+  sel.innerHTML = '<option value="">-- 選擇國家 --</option>';
+  COUNTRIES.forEach(c => {
+    const hasData = SHIP_DATA[c.value];
+    const count = hasData ? ` (${hasData.count}筆紀錄)` : '';
+    sel.innerHTML += `<option value="${c.value}">${c.label}${count}</option>`;
+  });
+  sel.innerHTML += '<option value="__other">其他國家（手動輸入）</option>';
+}
+
+function populateShippingMethods() {
+  const sel = el('shippingMethod');
+  const methods = new Map();
+  Object.values(SHIP_DATA).forEach(d => {
+    if (d.ship_lines) d.ship_lines.forEach(l => {
+      methods.set(l.name, (methods.get(l.name) || 0) + l.count);
+    });
+  });
+  const sorted = [...methods.entries()].sort((a,b) => b[1] - a[1]);
+  sel.innerHTML = '<option value="">-- 選擇貨運方式 --</option>';
+  sorted.forEach(([name, count]) => {
+    sel.innerHTML += `<option value="${escapeAttr(name)}">${escapeHtml(name)} (${count}次)</option>`;
+  });
+  sel.innerHTML += '<option value="__other">其他（手動輸入）</option>';
+  sel.onchange = function() {
+    if (this.value === '__other') {
+      const custom = prompt('請輸入貨運方式:');
+      if (custom) {
+        const opt = document.createElement('option');
+        opt.value = custom; opt.textContent = custom;
+        sel.insertBefore(opt, sel.lastChild);
+        sel.value = custom;
+      } else { sel.value = ''; }
+    }
+  };
+}
+
+function onCountryChange() {
+  const country = el('customerCountry').value;
+  if (country === '__other') {
+    const custom = prompt('請輸入國家名稱:');
+    if (custom) {
+      const opt = document.createElement('option');
+      opt.value = custom; opt.textContent = custom;
+      el('customerCountry').insertBefore(opt, el('customerCountry').lastChild);
+      el('customerCountry').value = custom;
+    }
+  }
+  renderShipRef();
+}
+
+function renderShipRef() {
+  const country = el('customerCountry').value;
+  const panel = el('ship-ref-panel');
+  const data = SHIP_DATA[country];
+  if (!data || country === '' || country === '__other') { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+  const avgPerKg = data.avg_rate_per_kg > 0 ? `$${data.avg_rate_per_kg.toFixed(1)}/kg` : 'N/A';
+  const topDays = data.ship_days.length > 0 ? data.ship_days.map(d=>`${d.days} days`).join(', ') : 'N/A';
+  let samplesHTML = '';
+  if (data.samples && data.samples.length > 0) {
+    const rows = data.samples.slice(0, 8).map(s => `
+      <tr><td>${escapeHtml(s.product || '-')}</td><td style="font-weight:600;">$${s.ship_usd.toFixed(1)}</td><td>${s.weight_kg ? s.weight_kg + ' kg' : '-'}</td><td>${s.days ? s.days + ' days' : '-'}</td><td>${escapeHtml(s.line || '-')}</td><td><button class="ship-ref-samples use-btn" onclick="useShipRef(${s.ship_usd},'${escapeAttr(s.line)}','${s.days}')">套用</button></td></tr>
+    `).join('');
+    samplesHTML = `<div class="ship-ref-samples"><table><thead><tr><th>產品</th><th>運費USD</th><th>重量</th><th>天數</th><th>貨運路線</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+  panel.innerHTML = `
+    <h3>📊 ${country} 歷史運費參考（${data.count} 筆紀錄）</h3>
+    <div class="ship-ref-grid">
+      <div class="ship-ref-stat"><div class="sr-label">最低運費</div><div class="sr-val">$${data.min_ship.toFixed(0)}</div></div>
+      <div class="ship-ref-stat"><div class="sr-label">平均運費</div><div class="sr-val">$${data.avg_ship.toFixed(0)}</div></div>
+      <div class="ship-ref-stat"><div class="sr-label">最高運費</div><div class="sr-val">$${data.max_ship.toFixed(0)}</div></div>
+      <div class="ship-ref-stat"><div class="sr-label">每KG均價</div><div class="sr-val">${avgPerKg}</div></div>
+      <div class="ship-ref-stat"><div class="sr-label">常見天數</div><div class="sr-val" style="font-size:13px;">${topDays}</div></div>
+    </div>
+    <div class="ship-ref-lines"><strong>常用路線：</strong>${data.ship_lines.map(l => `<span class="line-tag">${escapeHtml(l.name)} (${l.count}x)</span>`).join('')}</div>
+    ${samplesHTML}
+  `;
+}
+
+function useShipRef(usd, line, days) {
+  el('shippingUSD').value = usd.toFixed(1);
+  if (line) {
+    const sel = el('shippingMethod');
+    // If option doesn't exist, add it
+    if (![...sel.options].some(o => o.value === line)) {
+      const opt = document.createElement('option');
+      opt.value = line; opt.textContent = line;
+      sel.insertBefore(opt, sel.lastChild);
+    }
+    sel.value = line;
+  }
+  if (days) el('shippingDays').value = days + ' work days';
+  recalc();
+  showToast('已套用運費參考');
+}
+
+// ============================================================
+// DEFAULT DATA
+// ============================================================
+const DEFAULT_TIERS = [
+  {min:1,max:50,ratio:0.50,label:'樣品/少量'},{min:50,max:200,ratio:0.55,label:'50-200pcs'},
+  {min:200,max:500,ratio:0.60,label:'200-500pcs'},{min:500,max:1000,ratio:0.65,label:'500-1000pcs'},
+  {min:1000,max:5000,ratio:0.70,label:'1000-5000pcs'},{min:5000,max:10000,ratio:0.80,label:'5000-10000pcs'},
+  {min:10000,max:50000,ratio:0.85,label:'10000-50000pcs'},{min:50000,max:999999,ratio:0.90,label:'50000+ pcs'},
+];
+
+const DEFAULT_TEMPLATES = [
+  {name:'Black small hanger + gold hook (23CM)',nameEn:'Black small hanger + gold hook',rmbCost:3.5},
+  {name:'White small hanger + gold hook (23CM)',nameEn:'White small hanger + gold hook',rmbCost:3.5},
+  {name:'Acrylic small hanger + gold hook',nameEn:'Acrylic small hanger + gold hook',rmbCost:4.58},
+  {name:'Glossy black hanger + gold hook (23CM)',nameEn:'Glossy black hanger + gold hook',rmbCost:4.2},
+  {name:'Glossy white hanger + chrome hook (23CM)',nameEn:'Glossy white hanger + chrome hook',rmbCost:5.2},
+  {name:'White hanger + chrome hook (43CM)',nameEn:'White hanger + chrome hook',rmbCost:5},
+  {name:'Wood hanger + gold hook (44.5CM)',nameEn:'Wood hanger + gold hook',rmbCost:6.4},
+  {name:'26CM baby suit hanger + chrome flat hook',nameEn:'Wood baby suit hanger + chrome flat hook',rmbCost:3.9},
+  {name:'Non-woven hair bag 14*60CM',nameEn:'Non-woven hair bag 14*60CM',rmbCost:4.5},
+  {name:'Non-woven hair bag 29*60CM',nameEn:'Non-woven hair bag 29*60CM',rmbCost:3.5},
+  {name:'Silk hair bag 29*60CM',nameEn:'Silk fabric hair bag 29*60CM',rmbCost:11},
+  {name:'35CM pants hanger with clips',nameEn:'Pants hanger with clips',rmbCost:5},
+  {name:'Wall gold hook (w/ double side tape)',nameEn:'Wall gold hook with double side tape',rmbCost:3.3},
+  {name:'9 holes hanger (plastic)',nameEn:'9 holes hanger',rmbCost:1.84},
+];
+
+const CRM_STATUSES = [
+  {value:'inquiry', label:'詢價中', class:'status-inquiry'},
+  {value:'sample', label:'樣品階段', class:'status-sample'},
+  {value:'quoted', label:'已報價', class:'status-quoted'},
+  {value:'following', label:'跟進中', class:'status-following'},
+  {value:'pending_payment', label:'待付款', class:'status-pending_payment'},
+  {value:'in_production', label:'生產中', class:'status-in_production'},
+  {value:'shipped', label:'已出貨', class:'status-shipped'},
+  {value:'completed', label:'完成/復購', class:'status-completed'},
+];
+
+const ORDER_STAGES = [
+  {value:'pending', label:'待成單'},
+  {value:'paid', label:'待付款'},
+  {value:'producing', label:'生產中'},
+  {value:'ready', label:'待出貨'},
+  {value:'shipped', label:'已出貨'},
+  {value:'done', label:'完成'},
+];
+
+const DEFAULT_TAGS = ['復購客戶','高潛力新客','重要長期客戶','電商客戶','小客戶','待催付款','中盤商','潛在續購客戶','穩定小單客戶','服裝連鎖品牌','準訂單客戶','潛在新產品客戶'];
+
+const DEFAULT_SUPPLIERS = ['廣西 金億達','廣東 良田','廣東 錦秀','浙江 嘉星','浙江 超防电子科技','廣西 耀翔','浙江武義縣 宇丰电子科技','溫州 福然包装','浙江 曙光','浙江 恒耀改名涌乐电子','廣東 銘鑫','廣東 名友','浙江 振華塑料','廣東 金滨金属制品','廣東 优磁管理技术','浙江 数标金属工艺品厂','廣東 丰和实业','浙江 锦晴贸易','福建 馨嘉家具','廣東 华唐艺品五金工艺厂','河北霸州市 雨萱格塑料制品','廣東 珠疆'];
+const DEFAULT_FORWARDERS = ['Gary','Lucky','阿里物流','IRIS'];
+const DEFAULT_SHIP_TYPES = ['DDP by air','DDP by sea','DDP by rail','DDP by XX','DAP by air','Express','Postal shipping'];
+
+const DEFAULT_PRODUCT_LINKS = [
+  {name:'23CM 黑髮夾 金勾', url:'https://www.alibaba.com/product-detail/Astrid-23-CM-Wooden-Brand-Custom_10000000800507.html'},
+  {name:'23CM 白髮夾 金勾', url:'https://www.alibaba.com/product-detail/Astrid-23-cm-White-Wooden-Custom_10000000985398.html'},
+  {name:'23CM 正粉紅 髮夾 金勾', url:'https://www.alibaba.com/product-detail/Pink-Custom-Wig-Bag-logo-Wood_10000010582947.html'},
+  {name:'23CM 木色髮夾 銀勾', url:'https://www.alibaba.com/product-detail/Astrid-23-CM-Wooden-Custom-logo_10000004664466.html'},
+  {name:'30CM 木色髮夾 銀勾', url:'https://www.alibaba.com/product-detail/Astrid-30-cm-Wooden-Custom-logo_10000022463681.html'},
+  {name:'15CM 訂製黑髮夾 銀勾', url:'https://www.alibaba.com/product-detail/Astrid-15-CM-Wood-Custom-logo_10000004154452.html'},
+  {name:'小 木色單夾 + 透單夾', url:'https://www.alibaba.com/product-detail/Astrid-18-CM-W4CM-Small-Wooden_10000004396520.html'},
+  {name:'小 黑單夾', url:'https://www.alibaba.com/product-detail/Astrid-18-cm-Custom-logo-Black_10000007663076.html'},
+  {name:'29*60 黑不織布髮袋', url:'https://www.alibaba.com/product-detail/Astrid-29-X-60-cm-Custom_10000006354339.html'},
+  {name:'14*60 訂製 小 黑不織布髮袋', url:'https://www.alibaba.com/product-detail/Astrid-14-X-60-cm-Custom_10000009443511.html'},
+  {name:'29*60 圓頭黑 色丁髮袋', url:'https://www.alibaba.com/product-detail/Astrid-29-X-60-cm-High_10000012534568.html'},
+  {name:'29*60 圓頭白 色丁髮袋', url:'https://www.alibaba.com/product-detail/Astrid-29-X-60-cm-Custom_10000022615385.html'},
+];
+
+const DEFAULT_RESPONSE_TEMPLATES = [
+  {title:'傳目錄後 對話 (接髮類)', content:"hi here is our catalog of hair display products,\n(in hanger / hair hanger bag /steel display stand )\nthank you!"},
+  {title:'1.問要多少數量?', content:"How many quantity you need?"},
+  {title:'2.問要不要LOGO', content:"Do you also need single color logo printing?\n(Cost of logo print is US 55 once in all quantity)\n\nIf yes, pls sent us logo picture as big as possible.\nthank you!"},
+  {title:'3.問國家+郵編', content:"Pls offer us ship country + post code for us to\ncalculate ship cost + price for you."},
+  {title:'4.已報價 問是否OK', content:"Is price ok? If it's OK and make sure would buy it,\nwe can do next step to draw logo size design for you to check.\nthank you!"},
+  {title:'5.已傳Logo 問是否OK', content:"Here is LOGO size. Is it OK?\nif logo is OK, we will build Alipay order for you.\nthank you!"},
+  {title:'6.如沒email 問email', content:"** Pls sent us your e-mail of alibaba.\nCause we need email to build alipay order for you.\n\n** Pls sent us your address of receiving place."},
+  {title:'7.已傳訂單連結 請付款', content:"Here is the Alibaba order.\nPls kindly pay the order link, thank you!\n\nHere is the trade assurance order:\npls kindly check and make the payment.\nthank you!"},
+  {title:'8.感謝付款', content:"Thanks for your paying, we will prepare the producing."},
+  {title:'9.傳圖 確認是否OK', content:"Here is LOGO showing.\nAfter your confirming, then I could put it into producing."},
+  {title:'報價樣板', content:"pls offer your\n1. ship country / ship postal code of address\n2. which item you want?\n3. how many you want to buy?\n4. do you need to print logo?\n------\nto know how many colors in your logo:\n5. pls offer your High resolution logo file as big as possible"},
+  {title:'追客人', content:"we'll wait for your news. thank you!"},
+  {title:'回問客人想法', content:"how is your thinking?\npls kindly let us know, thank you!"},
+  {title:'問在顧慮什麼?', content:"what's your concern? pls kindly let us know."},
+  {title:'邀評', content:"Thank you for your reply.\nif you satisfied our products, could you please leave the good review for us."},
+];
+
+let state = {
+  tiers: [...DEFAULT_TIERS],
+  templates: [...DEFAULT_TEMPLATES],
+  products: [],
+  logos: [],
+  customers: [],
+  orders: [],
+  toolsData: { productLinks: [...DEFAULT_PRODUCT_LINKS], responseTemplates: [...DEFAULT_RESPONSE_TEMPLATES] },
+  rates: { rmbTwd: 4.75, usdTwd: 30.5, usdRmb: 7.2453 },
+  companyName: '',
+  crmFilter: 'all',
+  crmSubTab: 'customers',
+  orderFilter: 'all'
+};
+
+// ============================================================
+// INIT & STORAGE
+// ============================================================
+async function init() {
+  await loadAllData();
+  renderTiers();
+  renderTemplates();
+  addProduct();
+  renderCRM();
+  renderOrders();
+  renderTools();
+  recalc();
+  applyRoleUI();
+}
+
+function saveSettings() {
+  state.rates.rmbTwd = parseFloat(el('rate-rmb-twd').value) || 4.75;
+  state.rates.usdTwd = parseFloat(el('rate-usd-twd').value) || 30.5;
+  state.rates.usdRmb = parseFloat(el('rate-usd-rmb').value) || 7.2453;
+  state.companyName = el('companyName').value;
+  dbSave('settings', {
+    tiers: state.tiers, templates: state.templates,
+    rates: state.rates, companyName: state.companyName
+  });
+}
+
+function saveCRM()    { dbSave('crm',    state.customers); }
+function saveOrders() { dbSave('orders', state.orders); }
+function saveTools()  { dbSave('tools',  state.toolsData); }
+
+async function loadAllData() {
+  // Settings
+  const savedSettings = await dbLoad('settings');
+  if (savedSettings) {
+    if (savedSettings.tiers)     state.tiers = savedSettings.tiers;
+    if (savedSettings.templates) state.templates = savedSettings.templates;
+    if (savedSettings.rates)     state.rates = savedSettings.rates;
+    if (savedSettings.companyName !== undefined) state.companyName = savedSettings.companyName;
+  }
+  el('rate-rmb-twd').value = state.rates.rmbTwd;
+  el('rate-usd-twd').value = state.rates.usdTwd;
+  el('rate-usd-rmb').value = state.rates.usdRmb;
+  el('companyName').value  = state.companyName;
+
+  // CRM with migration
+  const crm = await dbLoad('crm');
+  if (crm) {
+    state.customers = crm;
+    state.customers.forEach(c => {
+      if (c.importance === undefined) c.importance = 2;
+      if (!c.tags) c.tags = [];
+      if (!c.followUpDate) c.followUpDate = '';
+      if (!c.productType) c.productType = '';
+      if (c.estimatedAmount === undefined) c.estimatedAmount = 0;
+      if (!c.notes) c.notes = [];
+      if (!c.quotes) c.quotes = [];
+      if (c.status === 'new')  c.status = 'inquiry';
+      if (c.status === 'won')  c.status = 'completed';
+      if (c.status === 'lost') c.status = 'completed';
+    });
+  }
+
+  // Orders
+  const orders = await dbLoad('orders');
+  if (orders) state.orders = orders;
+
+  // Tools
+  const tools = await dbLoad('tools');
+  if (tools) state.toolsData = tools;
+}
+
+// ============================================================
+// PRODUCTS
+// ============================================================
+let productCounter = 0;
+
+function saveProductValues() {
+  state.products.forEach(p => {
+    const n = el(`prod-name-${p.id}`);
+    const r = el(`prod-rmb-${p.id}`);
+    const q = el(`prod-qty-${p.id}`);
+    const m = el(`prod-manual-${p.id}`);
+    if (n) p._name = n.value;
+    if (r) p._rmb = r.value;
+    if (q) p._qty = q.value;
+    if (m) p._manual = m.value;
+  });
+}
+
+function restoreProductValues() {
+  state.products.forEach(p => {
+    if (p._name !== undefined) { const e = el(`prod-name-${p.id}`); if (e) e.value = p._name; }
+    if (p._rmb !== undefined) { const e = el(`prod-rmb-${p.id}`); if (e) e.value = p._rmb; }
+    if (p._qty !== undefined) { const e = el(`prod-qty-${p.id}`); if (e) e.value = p._qty; }
+    if (p._manual !== undefined) { const e = el(`prod-manual-${p.id}`); if (e) e.value = p._manual; }
+  });
+}
+
+function addProduct() {
+  saveProductValues();
+  productCounter++;
+  state.products.push({ id: productCounter });
+  renderProducts(); restoreProductValues(); recalc();
+}
+
+function removeProduct(id) {
+  saveProductValues();
+  state.products = state.products.filter(p => p.id !== id);
+  renderProducts(); restoreProductValues(); recalc();
+}
+
+function renderProducts() {
+  const container = el('products-list');
+  container.innerHTML = state.products.map((p, idx) => {
+    const opts = state.templates.map((t, ti) =>
+      `<option value="${ti}">${t.name} (¥${t.rmbCost})</option>`).join('');
+    return `
+    <div class="product-item">
+      <div class="product-header">
+        <span class="product-num">產品 #${idx+1}</span>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span class="calculated-price" id="prod-price-${p.id}"></span>
+          ${state.products.length > 1 ? `<button class="btn btn-danger" onclick="removeProduct(${p.id})">移除</button>` : ''}
+        </div>
+      </div>
+      <div class="row">
+        <div class="field" style="flex:2;"><label>快速選擇範本</label>
+          <select onchange="applyTemplate(${p.id}, this.value)"><option value="">-- 手動輸入 --</option>${opts}</select>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field" style="flex:2;"><label>產品英文名稱</label><input id="prod-name-${p.id}" placeholder="e.g. Black small hanger + gold hook" oninput="recalc()"></div>
+        <div class="field"><label>RMB 成本/個</label><input id="prod-rmb-${p.id}" type="number" step="0.01" placeholder="0" oninput="recalc()"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>數量 (pcs)</label><input id="prod-qty-${p.id}" type="number" value="100" oninput="recalc()"></div>
+        <div class="field"><label>自動售價 (USD/pc)</label><input id="prod-auto-${p.id}" readonly style="background:#f0f8f0;font-weight:600;color:#0f9d58;"></div>
+        <div class="field"><label>手動調整售價</label><input id="prod-manual-${p.id}" type="number" step="0.01" placeholder="留空用自動價" oninput="recalc()"></div>
+        <div class="field"><label>適用級距</label><input id="prod-tier-${p.id}" readonly style="background:#f8f8f8;font-size:12px;"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function applyTemplate(prodId, idx) {
+  if (idx === '') return;
+  const t = state.templates[parseInt(idx)];
+  el(`prod-name-${prodId}`).value = t.nameEn;
+  el(`prod-rmb-${prodId}`).value = t.rmbCost;
+  recalc();
+}
+
+// ============================================================
+// LOGO
+// ============================================================
+let logoCounter = 0;
+function addLogo() { logoCounter++; state.logos.push({id:logoCounter}); renderLogos(); recalc(); }
+function removeLogo(id) { state.logos = state.logos.filter(l=>l.id!==id); renderLogos(); recalc(); }
+function renderLogos() {
+  el('logo-list').innerHTML = state.logos.map(l => `
+    <div class="logo-item">
+      <input id="logo-desc-${l.id}" placeholder="描述 e.g. 1 color logo fee" style="flex:2;padding:8px;border:1px solid #e0e0e0;border-radius:8px;" oninput="recalc()">
+      <input id="logo-usd-${l.id}" type="number" step="0.1" placeholder="USD" style="width:100px;padding:8px;border:1px solid #e0e0e0;border-radius:8px;" oninput="recalc()">
+      <button class="btn btn-danger" onclick="removeLogo(${l.id})">移除</button>
+    </div>`).join('');
+}
+
+// ============================================================
+// PRICING
+// ============================================================
+function getTier(qty) {
+  for (const t of state.tiers) { if (qty >= t.min && qty < t.max) return t; }
+  return state.tiers[state.tiers.length - 1];
+}
+
+function calcUSD(rmbCost, qty) {
+  const tier = getTier(qty);
+  return rmbCost * state.rates.rmbTwd / state.rates.usdTwd / tier.ratio;
+}
+
+function recalc() {
+  state.rates.rmbTwd = parseFloat(el('rate-rmb-twd').value) || 4.75;
+  state.rates.usdTwd = parseFloat(el('rate-usd-twd').value) || 30.5;
+  state.rates.usdRmb = parseFloat(el('rate-usd-rmb').value) || 7.2453;
+
+  let totalProducts = 0, totalCostRMB = 0;
+  state.products.forEach(p => {
+    const rmb = parseFloat(elVal(`prod-rmb-${p.id}`)) || 0;
+    const qty = parseInt(elVal(`prod-qty-${p.id}`)) || 0;
+    const manual = parseFloat(elVal(`prod-manual-${p.id}`));
+    const tier = getTier(qty);
+    const auto = calcUSD(rmb, qty);
+    const final_ = isNaN(manual) || manual <= 0 ? auto : manual;
+
+    const ae = el(`prod-auto-${p.id}`);
+    if (ae) ae.value = auto > 0 ? `US$ ${auto.toFixed(2)}` : '';
+    const te = el(`prod-tier-${p.id}`);
+    if (te) te.value = `${tier.label} (${((1-tier.ratio)*100).toFixed(0)}% 利潤)`;
+    const pe = el(`prod-price-${p.id}`);
+    if (pe) pe.textContent = final_ > 0 ? `小計: US$ ${(final_*qty).toFixed(2)}` : '';
+
+    totalProducts += final_ * qty;
+    totalCostRMB += rmb * qty;
+  });
+
+  let totalLogo = 0;
+  state.logos.forEach(l => { totalLogo += parseFloat(elVal(`logo-usd-${l.id}`)) || 0; });
+  const shipping = parseFloat(el('shippingUSD').value) || 0;
+  const grand = totalProducts + totalLogo + shipping;
+
+  el('sum-products').textContent = `$${totalProducts.toFixed(2)}`;
+  el('sum-logo').textContent = `$${totalLogo.toFixed(2)}`;
+  el('sum-shipping').textContent = `$${shipping.toFixed(2)}`;
+  el('sum-total').textContent = `$${grand.toFixed(2)}`;
+
+  const totalRMB = grand * state.rates.usdRmb;
+  const profitRMB = totalRMB - totalCostRMB;
+  const profitPct = totalRMB > 0 ? (profitRMB / totalRMB * 100) : 0;
+  el('sum-cost-rmb').textContent = `¥${totalCostRMB.toFixed(2)}`;
+  el('sum-total-rmb').textContent = `¥${totalRMB.toFixed(2)}`;
+  el('sum-profit-rmb').textContent = `¥${profitRMB.toFixed(2)}`;
+  el('sum-profit-pct').textContent = `${profitPct.toFixed(1)}%`;
+}
+
+function calcShipFromRMB() {
+  const rmb = parseFloat(el('shippingRMB').value) || 0;
+  const markup = parseFloat(el('shippingMarkup').value) || 1.2;
+  if (rmb > 0 && state.rates.usdRmb > 0) {
+    el('shippingUSD').value = ((rmb / state.rates.usdRmb) * markup).toFixed(1);
+  }
+  recalc();
+}
+
+// ============================================================
+// GENERATE QUOTE
+// ============================================================
+function generateQuote() {
+  const customer = el('customerName').value || 'Customer';
+  const postcode = el('customerPostcode').value;
+  const shipDays = el('shippingDays').value;
+  const prodDays = el('productionDays').value;
+  const shipping = parseFloat(el('shippingUSD').value) || 0;
+  const today = new Date();
+  const dateStr = `${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+
+  let lines = [`${dateStr} ${customer} price list:`];
+  if (prodDays) lines.push(`*** ${prodDays} to produce customized product`);
+  lines.push('');
+
+  let idx = 0;
+  state.products.forEach(p => {
+    const name = elVal(`prod-name-${p.id}`) || 'Product';
+    const qty = parseInt(elVal(`prod-qty-${p.id}`)) || 0;
+    const rmb = parseFloat(elVal(`prod-rmb-${p.id}`)) || 0;
+    const manual = parseFloat(elVal(`prod-manual-${p.id}`));
+    const auto = calcUSD(rmb, qty);
+    const final_ = isNaN(manual) || manual <= 0 ? auto : manual;
+    idx++;
+    lines.push(state.products.length > 1 ? `${idx}. ${name}:` : `${name}:`);
+    lines.push(`Quantity: ${qty} pcs`);
+    lines.push(`Price: US ${final_.toFixed(2)} /pc`);
+    lines.push('---');
+  });
+
+  state.logos.forEach(l => {
+    const desc = elVal(`logo-desc-${l.id}`) || 'Logo fee';
+    const usd = parseFloat(elVal(`logo-usd-${l.id}`)) || 0;
+    lines.push(`${desc}: US ${usd.toFixed(0)}`);
+  });
+
+  const dest = postcode || el('customerCountry').value || '';
+  if (shipping > 0) lines.push(`Ship cost${dest ? ' to '+dest : ''}: US ${shipping.toFixed(1)}`);
+  if (shipDays) lines.push(`** ${shipDays} shipping work days${dest ? ' to '+dest : ''}`);
+  lines.push('-----------------------------');
+
+  let total = 0;
+  state.products.forEach(p => {
+    const qty = parseInt(elVal(`prod-qty-${p.id}`)) || 0;
+    const rmb = parseFloat(elVal(`prod-rmb-${p.id}`)) || 0;
+    const manual = parseFloat(elVal(`prod-manual-${p.id}`));
+    const auto = calcUSD(rmb, qty);
+    total += (isNaN(manual) || manual <= 0 ? auto : manual) * qty;
+  });
+  state.logos.forEach(l => { total += parseFloat(elVal(`logo-usd-${l.id}`)) || 0; });
+  total += shipping;
+  lines.push(`Total price: US ${total.toFixed(1)}`);
+
+  const text = lines.join('\n');
+  el('quote-output').innerHTML = `<button class="btn btn-copy copy-btn" onclick="copyQuote()">複製報價</button>\n${escapeHtml(text)}`;
+  el('quote-output-card').style.display = 'block';
+  el('quote-output-card').scrollIntoView({ behavior: 'smooth' });
+  showToast('報價單已產生！');
+  return text;
+}
+
+function copyQuote() {
+  const text = el('quote-output').textContent.replace('複製報價', '').trim();
+  navigator.clipboard.writeText(text).then(() => showToast('已複製到剪貼簿！'));
+}
+
+function resetQuoteForm() {
+  if (!confirm('確定要清空所有報價資料，建立新報價嗎？')) return;
+  el('customerName').value = '';
+  el('customerCountry').value = '';
+  el('customerPostcode').value = '';
+  el('customerAddress').value = '';
+  el('customerPhone').value = '';
+  el('customerEmail').value = '';
+  el('shippingUSD').value = '0';
+  el('shippingRMB').value = '';
+  el('shippingMarkup').value = '1.2';
+  el('shippingMethod').value = '';
+  el('shippingDays').value = '';
+  el('productionDays').value = '';
+  el('ship-ref-panel').style.display = 'none';
+  el('quote-output-card').style.display = 'none';
+  state.products = [];
+  state.logos = [];
+  productCounter = 0;
+  logoCounter = 0;
+  addProduct();
+  renderLogos();
+  recalc();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  showToast('已清空，可以開始新報價！');
+}
+
+function exportPDF() {
+  function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  const customer = el('customerName').value || 'Customer';
+  const country = el('customerCountry').value || '';
+  const postcode = el('customerPostcode').value || '';
+  const shipMethod = el('shippingMethod').value || '';
+  const shipDays = el('shippingDays').value || '';
+  const prodDays = el('productionDays').value || '';
+  const shipping = parseFloat(el('shippingUSD').value) || 0;
+  const today = new Date();
+  const dateStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+
+  // Gather product data
+  let products = [];
+  let totalProducts = 0;
+  state.products.forEach(p => {
+    const name = elVal(`prod-name-${p.id}`) || 'Product';
+    const qty = parseInt(elVal(`prod-qty-${p.id}`)) || 0;
+    const rmb = parseFloat(elVal(`prod-rmb-${p.id}`)) || 0;
+    const manual = parseFloat(elVal(`prod-manual-${p.id}`));
+    const auto = calcUSD(rmb, qty);
+    const final_ = isNaN(manual) || manual <= 0 ? auto : manual;
+    products.push({ name, qty, unitPrice: final_, subtotal: final_ * qty });
+    totalProducts += final_ * qty;
+  });
+
+  let totalLogo = 0;
+  let logos = [];
+  state.logos.forEach(l => {
+    const desc = elVal(`logo-desc-${l.id}`) || 'Logo fee';
+    const usd = parseFloat(elVal(`logo-usd-${l.id}`)) || 0;
+    logos.push({ desc, usd });
+    totalLogo += usd;
+  });
+
+  const grand = totalProducts + totalLogo + shipping;
+  const companyName = state.companyName || 'Astrid Display';
+
+  // Build product rows
+  const prodRows = products.map((p, i) => `
+    <tr><td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;">${i+1}</td>
+    <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;">${esc(p.name)}</td>
+    <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;text-align:center;">${p.qty}</td>
+    <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;text-align:right;">US$ ${p.unitPrice.toFixed(2)}</td>
+    <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;text-align:right;">US$ ${p.subtotal.toFixed(2)}</td></tr>
+  `).join('');
+
+  const logoRows = logos.map(l => `
+    <tr><td colspan="4" style="padding:8px 12px;border-bottom:1px solid #e0e0e0;">${esc(l.desc)}</td>
+    <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;text-align:right;">US$ ${l.usd.toFixed(2)}</td></tr>
+  `).join('');
+
+  const dest = postcode || country;
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Quotation - ${esc(customer)}</title>
+<style>
+  @media print { body { margin: 0; } @page { margin: 15mm; } }
+  body { font-family: Arial, sans-serif; color: #333; max-width: 800px; margin: 0 auto; padding: 20px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; border-bottom: 3px solid #1a1a2e; padding-bottom: 15px; }
+  .header h1 { font-size: 24px; color: #1a1a2e; margin: 0; }
+  .header .company { font-size: 14px; color: #666; }
+  .info { display: flex; justify-content: space-between; margin-bottom: 20px; }
+  .info div { font-size: 13px; line-height: 1.8; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+  thead th { background: #1a1a2e; color: white; padding: 10px 12px; text-align: left; font-size: 13px; }
+  thead th:nth-child(3), thead th:nth-child(4), thead th:nth-child(5) { text-align: center; }
+  .total-row td { font-weight: 700; font-size: 16px; padding: 12px; border-top: 2px solid #1a1a2e; }
+  .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #e0e0e0; font-size: 11px; color: #999; }
+  .notes { background: #f8f9fa; padding: 12px; border-radius: 6px; margin-bottom: 15px; font-size: 12px; line-height: 1.8; }
+</style></head><body>
+<div class="header">
+  <div><h1>QUOTATION</h1><div class="company">${esc(companyName)}</div></div>
+  <div style="text-align:right;font-size:13px;line-height:1.8;"><strong>Date:</strong> ${dateStr}<br><strong>Quote #:</strong> Q-${Date.now().toString().slice(-6)}</div>
+</div>
+<div class="info">
+  <div><strong>To:</strong> ${esc(customer)}${country ? '<br><strong>Country:</strong> ' + esc(country) : ''}${postcode ? '<br><strong>Post Code:</strong> ' + esc(postcode) : ''}</div>
+</div>
+${prodDays ? `<div class="notes"><strong>Production:</strong> ${esc(prodDays)} to produce customized product</div>` : ''}
+<table>
+  <thead><tr><th>#</th><th>Product</th><th>Qty</th><th>Unit Price</th><th>Subtotal</th></tr></thead>
+  <tbody>
+    ${prodRows}
+    ${logoRows}
+    ${shipping > 0 ? `<tr><td colspan="4" style="padding:8px 12px;border-bottom:1px solid #e0e0e0;">Shipping${dest ? ' to ' + esc(dest) : ''}${shipMethod ? ' (' + esc(shipMethod) + ')' : ''}</td><td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;text-align:right;">US$ ${shipping.toFixed(2)}</td></tr>` : ''}
+    <tr class="total-row"><td colspan="4" style="text-align:right;">TOTAL</td><td style="text-align:right;">US$ ${grand.toFixed(2)}</td></tr>
+  </tbody>
+</table>
+${shipDays ? `<div class="notes"><strong>Shipping:</strong> ${esc(shipDays)} shipping work days${dest ? ' to ' + esc(dest) : ''}</div>` : ''}
+<div class="footer">This quotation is valid for 30 days from the date of issue.</div>
+</body></html>`;
+
+  const w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
+  setTimeout(() => { w.print(); }, 500);
+}
+
+// ============================================================
+// SAVE QUOTE + CRM
+// ============================================================
+function saveQuoteAndCRM() {
+  const quoteText = generateQuote();
+  const customerName = el('customerName').value.trim();
+  if (!customerName) { showToast('請輸入客戶名稱'); return; }
+
+  const country = el('customerCountry').value || '';
+  const postcode = el('customerPostcode').value || '';
+  const address = el('customerAddress').value || '';
+  const phone = el('customerPhone').value || '';
+  const email = el('customerEmail').value || '';
+
+  let products = [];
+  let totalAmount = 0;
+  state.products.forEach(p => {
+    const name = elVal(`prod-name-${p.id}`) || '';
+    const qty = parseInt(elVal(`prod-qty-${p.id}`)) || 0;
+    const rmb = parseFloat(elVal(`prod-rmb-${p.id}`)) || 0;
+    const manual = parseFloat(elVal(`prod-manual-${p.id}`));
+    const auto = calcUSD(rmb, qty);
+    const final_ = isNaN(manual) || manual <= 0 ? auto : manual;
+    products.push({ name, qty, unitPrice: final_, rmbCost: rmb });
+    totalAmount += final_ * qty;
+  });
+  let totalLogo = 0;
+  state.logos.forEach(l => { totalLogo += parseFloat(elVal(`logo-usd-${l.id}`)) || 0; });
+  const shipping = parseFloat(el('shippingUSD').value) || 0;
+  totalAmount += totalLogo + shipping;
+
+  const quoteRecord = {
+    id: Date.now(),
+    date: new Date().toISOString().slice(0, 10),
+    products, totalLogo, shipping, totalAmount, quoteText
+  };
+
+  let customer = state.customers.find(c => c.name.toLowerCase() === customerName.toLowerCase());
+  if (!customer) {
+    customer = {
+      id: Date.now(), name: customerName,
+      country, postcode, address, phone, email,
+      status: 'quoted',
+      importance: 2, tags: [], followUpDate: '', productType: '', estimatedAmount: 0,
+      quotes: [], notes: [],
+      createdAt: new Date().toISOString().slice(0, 10)
+    };
+    state.customers.unshift(customer);
+  } else {
+    if (country) customer.country = country;
+    if (postcode) customer.postcode = postcode;
+    if (address) customer.address = address;
+    if (phone) customer.phone = phone;
+    if (email) customer.email = email;
+    if (customer.status === 'inquiry') customer.status = 'quoted';
+  }
+
+  customer.quotes.unshift(quoteRecord);
+  customer.notes.unshift({
+    date: new Date().toISOString().slice(0, 10),
+    text: `報價 US$${totalAmount.toFixed(0)} — ${products.map(p => `${p.name} x${p.qty}`).join(', ')}`,
+    type: 'quote'
+  });
+
+  // Set follow-up date to 7 days from now if not set
+  if (!customer.followUpDate) {
+    const d = new Date(); d.setDate(d.getDate() + 7);
+    customer.followUpDate = d.toISOString().slice(0, 10);
+  }
+
+  saveCRM(); renderCRM();
+  showToast('已儲存報價並建立客戶紀錄！');
+}
+
+// ============================================================
+// CRM - DASHBOARD
+// ============================================================
+function renderDashboard() {
+  const today = new Date().toISOString().slice(0, 10);
+  const overdue = state.customers.filter(c => c.followUpDate && c.followUpDate < today).length;
+  const dueToday = state.customers.filter(c => c.followUpDate === today).length;
+  const activeOrders = state.orders.filter(o => o.stage !== 'done').length;
+  const estTotal = state.customers.reduce((s, c) => s + (c.estimatedAmount || 0), 0);
+
+  el('crm-dashboard').innerHTML = `
+    <div class="dash-stat urgent"><div class="ds-value">${overdue}</div><div class="ds-label">已逾期追蹤</div></div>
+    <div class="dash-stat today"><div class="ds-value">${dueToday}</div><div class="ds-label">今日待追蹤</div></div>
+    <div class="dash-stat active"><div class="ds-value">${activeOrders}</div><div class="ds-label">進行中訂單</div></div>
+    <div class="dash-stat money"><div class="ds-value">$${estTotal > 0 ? estTotal.toLocaleString() : '0'}</div><div class="ds-label">預估總金額</div></div>
+  `;
+}
+
+// ============================================================
+// CRM - CUSTOMER LIST
+// ============================================================
+function renderCRM() {
+  renderDashboard();
+
+  const counts = { all: state.customers.length };
+  CRM_STATUSES.forEach(s => { counts[s.value] = state.customers.filter(c => c.status === s.value).length; });
+
+  el('crm-filters').innerHTML = `
+    <button class="crm-filter-btn ${state.crmFilter==='all'?'active':''}" onclick="setCRMFilter('all')">全部<span class="badge">${counts.all}</span></button>
+    ${CRM_STATUSES.map(s => `
+      <button class="crm-filter-btn ${state.crmFilter===s.value?'active':''}" onclick="setCRMFilter('${s.value}')">
+        ${s.label}<span class="badge">${counts[s.value] || 0}</span>
+      </button>`).join('')}
+  `;
+
+  const search = (el('crm-search')?.value || '').toLowerCase();
+  let filtered = state.customers.filter(c => {
+    if (state.crmFilter !== 'all' && c.status !== state.crmFilter) return false;
+    if (search) {
+      const haystack = [c.name, c.country, c.productType, ...(c.tags||[])].join(' ').toLowerCase();
+      if (!haystack.includes(search)) return false;
+    }
+    return true;
+  });
+
+  // Sort
+  const sortBy = el('crm-sort')?.value || 'followup';
+  const today = new Date().toISOString().slice(0, 10);
+  if (sortBy === 'followup') {
+    filtered.sort((a, b) => {
+      if (!a.followUpDate && !b.followUpDate) return 0;
+      if (!a.followUpDate) return 1;
+      if (!b.followUpDate) return -1;
+      return a.followUpDate.localeCompare(b.followUpDate);
+    });
+  } else if (sortBy === 'importance') {
+    filtered.sort((a, b) => (b.importance || 0) - (a.importance || 0));
+  } else if (sortBy === 'name') {
+    filtered.sort((a, b) => a.name.localeCompare(b.name));
+  } else if (sortBy === 'newest') {
+    filtered.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  }
+
+  if (filtered.length === 0) {
+    el('crm-list').innerHTML = '<div class="empty-state"><div class="icon">👥</div><div>尚無符合條件的客戶</div></div>';
+    return;
+  }
+
+  el('crm-list').innerHTML = filtered.map(c => {
+    const statusInfo = CRM_STATUSES.find(s => s.value === c.status) || CRM_STATUSES[0];
+    const totalQuoted = c.quotes ? c.quotes.reduce((sum, q) => sum + q.totalAmount, 0) : 0;
+    const lastQuote = c.quotes && c.quotes.length > 0 ? c.quotes[0] : null;
+    const stars = '★'.repeat(c.importance || 2) + '☆'.repeat(4 - (c.importance || 2));
+
+    // Follow-up date styling
+    let fuClass = 'nodate', fuText = '未設定追單日';
+    if (c.followUpDate) {
+      if (c.followUpDate < today) { fuClass = 'overdue'; fuText = `逾期: ${c.followUpDate}`; }
+      else if (c.followUpDate === today) { fuClass = 'today'; fuText = `今天: ${c.followUpDate}`; }
+      else { fuClass = 'upcoming'; fuText = `${c.followUpDate}`; }
+    }
+
+    // Card border class
+    let cardClass = 'customer-card';
+    if (c.followUpDate) {
+      if (c.followUpDate < today) cardClass += ' overdue';
+      else if (c.followUpDate === today) cardClass += ' due-today';
+      else { const d3 = new Date(); d3.setDate(d3.getDate()+3); if (c.followUpDate <= d3.toISOString().slice(0,10)) cardClass += ' due-soon'; }
+    }
+
+    const tagsHTML = (c.tags || []).map(t => `<span class="cc-tag">${escapeHtml(t)}</span>`).join(' ');
+
+    const latestNote = (c.notes || []).find(n => n.type === 'note' || n.type === 'status');
+
+    const timelineHTML = (c.notes || []).slice(0, 5).map(n => `
+      <div class="timeline-item">
+        <div class="tl-date">${n.date}</div>
+        <div class="tl-text">${escapeHtml(n.text)}</div>
+        ${n.type === 'quote' ? '<div class="tl-quote">[ 報價紀錄 ]</div>' : ''}
+      </div>
+    `).join('');
+
+    const statusOptions = CRM_STATUSES.map(s =>
+      `<option value="${s.value}" ${c.status===s.value?'selected':''}>${s.label}</option>`
+    ).join('');
+
+    return `
+    <div class="${cardClass}">
+      <div class="cc-header">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="cc-stars" onclick="cycleImportance(${c.id})" title="點擊切換重要性">${stars}</span>
+          <span class="cc-name">${escapeHtml(c.name)}</span>
+          <span class="cc-country">${escapeHtml(c.country || '')}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <select style="padding:3px 6px;border:1px solid #e0e0e0;border-radius:6px;font-size:11px;" onchange="updateStatus(${c.id}, this.value)">${statusOptions}</select>
+          <span class="status-tag ${statusInfo.class}">${statusInfo.label}</span>
+        </div>
+      </div>
+
+      <div class="cc-meta">
+        ${tagsHTML}
+        ${c.productType ? `<span style="color:#555;">| ${escapeHtml(c.productType)}</span>` : ''}
+        <span class="cc-followup ${fuClass}">${fuText}</span>
+        ${c.estimatedAmount > 0 ? `<span style="color:#0f9d58;font-weight:600;">預估 $${c.estimatedAmount.toLocaleString()}</span>` : ''}
+        <span>報價 ${c.quotes ? c.quotes.length : 0} 次 / 累計 $${totalQuoted.toFixed(0)}</span>
+      </div>
+
+      ${latestNote ? `<div class="cc-status-note">${escapeHtml(latestNote.text)}</div>` : ''}
+
+      <details style="margin-top:4px;">
+        <summary style="cursor:pointer;font-size:12px;color:#1a1a2e;font-weight:500;">展開追蹤記錄 & 備註 (${(c.notes||[]).length})</summary>
+        <div style="margin-top:8px;">
+          <div class="timeline">${timelineHTML || '<div style="color:#999;font-size:12px;padding:8px;">尚無追蹤紀錄</div>'}</div>
+          <div class="note-input">
+            <input id="note-input-${c.id}" placeholder="新增追蹤備註..." onkeydown="if(event.key==='Enter')addNote(${c.id})">
+            <button class="btn btn-primary btn-sm" onclick="addNote(${c.id})">新增</button>
+          </div>
+        </div>
+      </details>
+
+      <div style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap;">
+        <button class="btn btn-copy btn-sm" onclick="loadCustomerToQuote(${c.id})">重新報價</button>
+        ${lastQuote ? `<button class="btn btn-sm" style="background:#666;color:white;" onclick="copyText(\`${escapeAttr(lastQuote.quoteText || '')}\`)">複製最近報價</button>` : ''}
+        <button class="btn btn-sm" style="background:#7b1fa2;color:white;" onclick="showEditCustomer(${c.id})">編輯</button>
+        ${currentRole==='admin'?`<button class="btn btn-danger btn-sm" onclick="deleteCustomer(${c.id})">刪除</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function setCRMFilter(f) { state.crmFilter = f; renderCRM(); }
+
+function cycleImportance(custId) {
+  const c = state.customers.find(x => x.id === custId);
+  if (c) {
+    c.importance = (c.importance || 2) % 4 + 1;
+    saveCRM(); renderCRM();
+  }
+}
+
+function updateStatus(custId, newStatus) {
+  const c = state.customers.find(x => x.id === custId);
+  if (c) {
+    const oldLabel = CRM_STATUSES.find(s=>s.value===c.status)?.label || c.status;
+    const newLabel = CRM_STATUSES.find(s=>s.value===newStatus)?.label || newStatus;
+    c.status = newStatus;
+    c.notes.unshift({
+      date: new Date().toISOString().slice(0, 10),
+      text: `狀態變更: ${oldLabel} → ${newLabel}`,
+      type: 'status'
+    });
+    saveCRM(); renderCRM();
+    showToast(`客戶狀態已更新為「${newLabel}」`);
+  }
+}
+
+function addNote(custId) {
+  const input = el(`note-input-${custId}`);
+  const text = input.value.trim();
+  if (!text) return;
+  const c = state.customers.find(x => x.id === custId);
+  if (c) {
+    c.notes.unshift({ date: new Date().toISOString().slice(0, 10), text, type: 'note' });
+    saveCRM(); renderCRM();
+    showToast('備註已新增');
+  }
+}
+
+function loadCustomerToQuote(custId) {
+  const c = state.customers.find(x => x.id === custId);
+  if (!c) return;
+  el('customerName').value = c.name;
+  el('customerCountry').value = c.country || '';
+  el('customerPostcode').value = c.postcode || '';
+  el('customerAddress').value = c.address || '';
+  el('customerPhone').value = c.phone || '';
+  el('customerEmail').value = c.email || '';
+  onCountryChange();
+  switchTab('quote');
+  showToast(`已載入 ${c.name} 的客戶資料`);
+}
+
+function deleteCustomer(custId) {
+  if (!confirm('確定要刪除此客戶嗎？')) return;
+  state.customers = state.customers.filter(c => c.id !== custId);
+  saveCRM(); renderCRM();
+  showToast('客戶已刪除');
+}
+
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(() => showToast('已複製！'));
+}
+
+// ============================================================
+// EDIT CUSTOMER MODAL
+// ============================================================
+function showEditCustomer(custId) {
+  const c = state.customers.find(x => x.id === custId);
+  if (!c) return;
+
+  const tagOptions = DEFAULT_TAGS.map(t => {
+    const checked = (c.tags || []).includes(t) ? 'checked' : '';
+    return `<label style="display:inline-flex;align-items:center;gap:4px;margin:3px 6px 3px 0;font-size:12px;"><input type="checkbox" class="edit-tag-cb" value="${escapeAttr(t)}" ${checked}>${t}</label>`;
+  }).join('');
+
+  el('edit-modal-title').textContent = `編輯: ${c.name}`;
+  el('edit-modal-body').innerHTML = `
+    <div class="row"><div class="field"><label>客戶名稱</label><input id="edit-name" value="${escapeAttr(c.name)}"></div></div>
+    <div class="row">
+      <div class="field"><label>國家</label><input id="edit-country" value="${escapeAttr(c.country||'')}"></div>
+      <div class="field"><label>產品類型</label><input id="edit-productType" value="${escapeAttr(c.productType||'')}" placeholder="e.g. 假髮夾"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Email</label><input id="edit-email" value="${escapeAttr(c.email||'')}"></div>
+      <div class="field"><label>電話</label><input id="edit-phone" value="${escapeAttr(c.phone||'')}"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>郵遞區號</label><input id="edit-postcode" value="${escapeAttr(c.postcode||'')}"></div>
+      <div class="field"><label>收件地址</label><input id="edit-address" value="${escapeAttr(c.address||'')}"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>追單日</label><input id="edit-followup" type="date" value="${c.followUpDate||''}"></div>
+      <div class="field"><label>預估金額 (USD)</label><input id="edit-estAmount" type="number" value="${c.estimatedAmount||0}"></div>
+      <div class="field"><label>重要性 (1-4)</label><input id="edit-importance" type="number" min="1" max="4" value="${c.importance||2}"></div>
+    </div>
+    <div style="margin-top:8px;">
+      <label style="font-size:12px;color:#888;font-weight:500;">客戶標籤</label>
+      <div style="margin-top:4px;">${tagOptions}</div>
+      <div style="display:flex;gap:6px;margin-top:6px;">
+        <input id="edit-custom-tag" placeholder="自訂標籤" style="flex:1;padding:4px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;">
+        <button class="btn btn-sm btn-outline" onclick="document.getElementById('edit-custom-tag').value && (function(){const cb=document.createElement('label');cb.style='display:inline-flex;align-items:center;gap:4px;margin:3px 6px 3px 0;font-size:12px;';cb.innerHTML='<input type=checkbox class=edit-tag-cb value=&quot;'+document.getElementById('edit-custom-tag').value+'&quot; checked>'+document.getElementById('edit-custom-tag').value;document.getElementById('edit-custom-tag').parentElement.previousElementSibling.appendChild(cb);document.getElementById('edit-custom-tag').value='';})()">加入</button>
+      </div>
+    </div>
+  `;
+  el('edit-modal-save').onclick = () => {
+    c.name = el('edit-name').value.trim() || c.name;
+    c.country = el('edit-country').value;
+    c.productType = el('edit-productType').value;
+    c.email = el('edit-email').value;
+    c.phone = el('edit-phone').value;
+    c.postcode = el('edit-postcode').value;
+    c.address = el('edit-address').value;
+    c.followUpDate = el('edit-followup').value;
+    c.estimatedAmount = parseFloat(el('edit-estAmount').value) || 0;
+    c.importance = Math.min(4, Math.max(1, parseInt(el('edit-importance').value) || 2));
+    c.tags = [...document.querySelectorAll('.edit-tag-cb:checked')].map(cb => cb.value);
+    saveCRM(); renderCRM(); closeModal('edit-modal');
+    showToast('客戶資料已更新');
+  };
+  el('edit-modal').classList.add('show');
+}
+
+function closeModal(id) { el(id).classList.remove('show'); }
+
+// ============================================================
+// ORDER TRACKING
+// ============================================================
+function renderOrders() {
+  // Pipeline counts
+  const counts = { all: state.orders.length };
+  ORDER_STAGES.forEach(s => { counts[s.value] = state.orders.filter(o => o.stage === s.value).length; });
+
+  el('order-pipeline').innerHTML = `
+    <div class="order-stage ${state.orderFilter==='all'?'active':''}" onclick="setOrderFilter('all')"><span class="os-count">${counts.all}</span>全部</div>
+    ${ORDER_STAGES.map(s => `
+      <div class="order-stage ${state.orderFilter===s.value?'active':''}" onclick="setOrderFilter('${s.value}')">
+        <span class="os-count">${counts[s.value]||0}</span>${s.label}
+      </div>
+    `).join('')}
+  `;
+
+  let filtered = state.orders;
+  if (state.orderFilter !== 'all') filtered = filtered.filter(o => o.stage === state.orderFilter);
+
+  if (filtered.length === 0) {
+    el('order-list').innerHTML = '<div class="empty-state"><div class="icon">📦</div><div>尚無訂單</div></div>';
+    return;
+  }
+
+  el('order-list').innerHTML = filtered.map(o => {
+    const stageInfo = ORDER_STAGES.find(s => s.value === o.stage) || ORDER_STAGES[0];
+    return `
+    <div class="order-card">
+      <div class="oc-header">
+        <div>
+          <span class="oc-name">${escapeHtml(o.customerName)}</span>
+          <span style="font-size:12px;color:#888;margin-left:6px;">${escapeHtml(o.country||'')}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <select style="padding:3px 6px;border:1px solid #e0e0e0;border-radius:6px;font-size:11px;" onchange="updateOrderStage(${o.id}, this.value)">
+            ${ORDER_STAGES.map(s=>`<option value="${s.value}" ${o.stage===s.value?'selected':''}>${s.label}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="oc-product">${escapeHtml(o.product)}</div>
+      <div class="oc-checks">
+        <label class="oc-check"><input type="checkbox" ${o.orderConfirmed?'checked':''} onchange="toggleOrderField(${o.id},'orderConfirmed',this.checked)"> 成單</label>
+        <label class="oc-check"><input type="checkbox" ${o.paymentDone?'checked':''} onchange="toggleOrderField(${o.id},'paymentDone',this.checked)"> 代付</label>
+        <label class="oc-check"><input type="checkbox" ${o.shipped?'checked':''} onchange="toggleOrderField(${o.id},'shipped',this.checked)"> 出貨</label>
+      </div>
+      ${o.rmbAmount ? `<div class="oc-field"><strong>金額:</strong> ¥${o.rmbAmount}</div>` : ''}
+      <div class="oc-field" style="display:flex;gap:12px;flex-wrap:wrap;">
+        ${o.supplier ? `<span><strong>廠商:</strong> ${escapeHtml(o.supplier)}</span>` : ''}
+        ${o.forwarder ? `<span><strong>代運:</strong> ${escapeHtml(o.forwarder)}</span>` : ''}
+        ${o.shipType ? `<span><strong>貨運:</strong> ${escapeHtml(o.shipType)}</span>` : ''}
+      </div>
+      ${o.factoryNote ? `<div class="oc-field"><strong>工廠進度:</strong> ${escapeHtml(o.factoryNote)}</div>` : ''}
+      ${o.trackingNumber ? `<div class="oc-field"><strong>物流單號:</strong> <span class="oc-tracking" onclick="copyText('${escapeAttr(o.trackingNumber)}')">${escapeHtml(o.trackingNumber)} 📋</span></div>` : ''}
+      ${o.address ? `<div class="oc-field"><strong>地址:</strong> ${escapeHtml(o.address)}</div>` : ''}
+      ${o.notes ? `<div class="oc-notes">${escapeHtml(o.notes)}</div>` : ''}
+      <div style="margin-top:8px;display:flex;gap:4px;">
+        <button class="btn btn-sm" style="background:#7b1fa2;color:white;" onclick="showEditOrder(${o.id})">編輯</button>
+        ${currentRole==='admin'?`<button class="btn btn-danger btn-sm" onclick="deleteOrder(${o.id})">刪除</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function setOrderFilter(f) { state.orderFilter = f; renderOrders(); }
+
+function updateOrderStage(orderId, newStage) {
+  const o = state.orders.find(x => x.id === orderId);
+  if (o) { o.stage = newStage; o.updatedAt = new Date().toISOString().slice(0,10); saveOrders(); renderOrders(); renderDashboard(); }
+}
+
+function toggleOrderField(orderId, field, val) {
+  const o = state.orders.find(x => x.id === orderId);
+  if (o) { o[field] = val; o.updatedAt = new Date().toISOString().slice(0,10); saveOrders(); renderOrders(); }
+}
+
+function deleteOrder(orderId) {
+  if (!confirm('確定要刪除此訂單嗎？')) return;
+  state.orders = state.orders.filter(o => o.id !== orderId);
+  saveOrders(); renderOrders(); renderDashboard();
+  showToast('訂單已刪除');
+}
+
+function buildSelectHTML(id, options, selected, placeholder) {
+  let html = `<select id="${id}"><option value="">${placeholder}</option>`;
+  options.forEach(o => { html += `<option value="${escapeAttr(o)}" ${selected===o?'selected':''}>${escapeHtml(o)}</option>`; });
+  html += `<option value="__other">其他（手動輸入）</option></select>`;
+  return html;
+}
+
+function initSelectOther(id) {
+  const sel = el(id);
+  if (!sel) return;
+  sel.addEventListener('change', function() {
+    if (this.value === '__other') {
+      const custom = prompt('請輸入:');
+      if (custom) {
+        const opt = document.createElement('option');
+        opt.value = custom; opt.textContent = custom;
+        sel.insertBefore(opt, sel.lastChild);
+        sel.value = custom;
+      } else { sel.value = ''; }
+    }
+  });
+}
+
+function getSelectVal(id) {
+  const v = el(id)?.value || '';
+  return v === '__other' ? '' : v;
+}
+
+function showNewOrderModal() {
+  el('order-modal-title').textContent = '新增訂單';
+  const custOptions = state.customers.map(c => `<option value="${c.id}">${escapeHtml(c.name)} (${escapeHtml(c.country||'')})</option>`).join('');
+  el('order-modal-body').innerHTML = `
+    <div class="row"><div class="field"><label>選擇客戶</label><select id="ord-customer"><option value="">-- 手動輸入 --</option>${custOptions}</select></div></div>
+    <div class="row"><div class="field"><label>客戶名稱</label><input id="ord-name" placeholder="客戶名稱"></div><div class="field"><label>國家</label><input id="ord-country" placeholder="國家"></div></div>
+    <div class="row"><div class="field" style="flex:2"><label>產品描述</label><input id="ord-product" placeholder="e.g. 200個髮夾"></div></div>
+    <div class="row">
+      <div class="field"><label>RMB 金額</label><input id="ord-rmb" type="number" placeholder="0"></div>
+      <div class="field"><label>訂單階段</label><select id="ord-stage">${ORDER_STAGES.map(s=>`<option value="${s.value}">${s.label}</option>`).join('')}</select></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>主要廠商</label>${buildSelectHTML('ord-supplier', DEFAULT_SUPPLIERS, '', '-- 選擇廠商 --')}</div>
+      <div class="field"><label>代運公司</label>${buildSelectHTML('ord-forwarder', DEFAULT_FORWARDERS, '', '-- 選擇代運 --')}</div>
+      <div class="field"><label>貨運方式</label>${buildSelectHTML('ord-shiptype', DEFAULT_SHIP_TYPES, '', '-- 選擇方式 --')}</div>
+    </div>
+    <div class="row"><div class="field" style="flex:2"><label>工廠生產進度</label><input id="ord-factory" placeholder="e.g. 03-04放去做了"></div></div>
+    <div class="row"><div class="field"><label>物流單號</label><input id="ord-tracking" placeholder="e.g. JT3156265326608"></div></div>
+    <div class="row"><div class="field" style="flex:2"><label>地址</label><input id="ord-address" placeholder="收件地址"></div></div>
+    <div class="row"><div class="field" style="flex:2"><label>備註</label><textarea id="ord-notes" rows="2" placeholder="備註"></textarea></div></div>
+  `;
+  initSelectOther('ord-supplier'); initSelectOther('ord-forwarder'); initSelectOther('ord-shiptype');
+  el('ord-customer').onchange = function() {
+    const c = state.customers.find(x => x.id === parseInt(this.value));
+    if (c) { el('ord-name').value = c.name; el('ord-country').value = c.country || ''; el('ord-address').value = c.address || ''; }
+  };
+  el('order-modal-save').onclick = () => {
+    const name = el('ord-name').value.trim();
+    if (!name) { showToast('請輸入客戶名稱'); return; }
+    state.orders.unshift({
+      id: Date.now(),
+      customerId: parseInt(el('ord-customer').value) || null,
+      customerName: name,
+      product: el('ord-product').value,
+      country: el('ord-country').value,
+      orderConfirmed: false, paymentDone: false, shipped: false,
+      rmbAmount: parseFloat(el('ord-rmb').value) || 0,
+      supplier: getSelectVal('ord-supplier'),
+      forwarder: getSelectVal('ord-forwarder'),
+      shipType: getSelectVal('ord-shiptype'),
+      factoryNote: el('ord-factory').value,
+      trackingNumber: el('ord-tracking').value,
+      address: el('ord-address').value,
+      notes: el('ord-notes').value,
+      stage: el('ord-stage').value,
+      createdAt: new Date().toISOString().slice(0,10),
+      updatedAt: new Date().toISOString().slice(0,10)
+    });
+    saveOrders(); renderOrders(); renderDashboard(); closeModal('order-modal');
+    showToast('訂單已新增');
+  };
+  el('order-modal').classList.add('show');
+}
+
+function showEditOrder(orderId) {
+  const o = state.orders.find(x => x.id === orderId);
+  if (!o) return;
+  el('order-modal-title').textContent = `編輯訂單: ${o.customerName}`;
+  el('order-modal-body').innerHTML = `
+    <div class="row"><div class="field"><label>客戶名稱</label><input id="ord-name" value="${escapeAttr(o.customerName)}"></div><div class="field"><label>國家</label><input id="ord-country" value="${escapeAttr(o.country||'')}"></div></div>
+    <div class="row"><div class="field" style="flex:2"><label>產品描述</label><input id="ord-product" value="${escapeAttr(o.product)}"></div></div>
+    <div class="row">
+      <div class="field"><label>RMB 金額</label><input id="ord-rmb" type="number" value="${o.rmbAmount||0}"></div>
+      <div class="field"><label>訂單階段</label><select id="ord-stage">${ORDER_STAGES.map(s=>`<option value="${s.value}" ${o.stage===s.value?'selected':''}>${s.label}</option>`).join('')}</select></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>主要廠商</label>${buildSelectHTML('ord-supplier', DEFAULT_SUPPLIERS, o.supplier||'', '-- 選擇廠商 --')}</div>
+      <div class="field"><label>代運公司</label>${buildSelectHTML('ord-forwarder', DEFAULT_FORWARDERS, o.forwarder||'', '-- 選擇代運 --')}</div>
+      <div class="field"><label>貨運方式</label>${buildSelectHTML('ord-shiptype', DEFAULT_SHIP_TYPES, o.shipType||'', '-- 選擇方式 --')}</div>
+    </div>
+    <div class="row"><div class="field" style="flex:2"><label>工廠生產進度</label><input id="ord-factory" value="${escapeAttr(o.factoryNote||'')}"></div></div>
+    <div class="row"><div class="field"><label>物流單號</label><input id="ord-tracking" value="${escapeAttr(o.trackingNumber||'')}"></div></div>
+    <div class="row"><div class="field" style="flex:2"><label>地址</label><input id="ord-address" value="${escapeAttr(o.address||'')}"></div></div>
+    <div class="row"><div class="field" style="flex:2"><label>備註</label><textarea id="ord-notes" rows="2">${escapeHtml(o.notes||'')}</textarea></div></div>
+  `;
+  initSelectOther('ord-supplier'); initSelectOther('ord-forwarder'); initSelectOther('ord-shiptype');
+  el('order-modal-save').onclick = () => {
+    o.customerName = el('ord-name').value.trim() || o.customerName;
+    o.country = el('ord-country').value;
+    o.product = el('ord-product').value;
+    o.rmbAmount = parseFloat(el('ord-rmb').value) || 0;
+    o.stage = el('ord-stage').value;
+    o.supplier = getSelectVal('ord-supplier');
+    o.forwarder = getSelectVal('ord-forwarder');
+    o.shipType = getSelectVal('ord-shiptype');
+    o.factoryNote = el('ord-factory').value;
+    o.trackingNumber = el('ord-tracking').value;
+    o.address = el('ord-address').value;
+    o.notes = el('ord-notes').value;
+    o.updatedAt = new Date().toISOString().slice(0,10);
+    saveOrders(); renderOrders(); renderDashboard(); closeModal('order-modal');
+    showToast('訂單已更新');
+  };
+  el('order-modal').classList.add('show');
+}
+
+// ============================================================
+// TOOLS PANEL
+// ============================================================
+function renderTools() {
+  // Product links
+  const links = state.toolsData.productLinks || [];
+  el('product-links-list').innerHTML = links.length === 0 ?
+    '<div style="color:#999;font-size:12px;padding:8px;">尚無產品連結</div>' :
+    links.map((l, i) => `
+      <div class="tool-item">
+        <span class="ti-name">${escapeHtml(l.name)}</span>
+        <span class="ti-url" title="${escapeAttr(l.url)}">${escapeHtml(l.url)}</span>
+        <button class="btn btn-copy btn-sm" onclick="copyText('${escapeAttr(l.url)}')">複製</button>
+        <button class="btn btn-danger btn-sm" onclick="removeProductLink(${i})">刪除</button>
+      </div>
+    `).join('');
+
+  // Response templates
+  const tmpls = state.toolsData.responseTemplates || [];
+  el('response-templates-list').innerHTML = tmpls.length === 0 ?
+    '<div style="color:#999;font-size:12px;padding:8px;">尚無應答樣板</div>' :
+    tmpls.map((t, i) => `
+      <div class="template-item" id="tmpl-${i}">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div class="tmpl-title">${escapeHtml(t.title)}</div>
+          <div style="display:flex;gap:4px;">
+            <button class="btn btn-copy btn-sm" onclick="copyText(\`${escapeAttr(t.content)}\`)">複製</button>
+            <button class="btn btn-sm btn-outline" onclick="document.getElementById('tmpl-${i}').classList.toggle('expanded')">展開</button>
+            <button class="btn btn-danger btn-sm" onclick="removeResponseTemplate(${i})">刪除</button>
+          </div>
+        </div>
+        <div class="tmpl-content">${escapeHtml(t.content)}</div>
+      </div>
+    `).join('');
+}
+
+function addProductLink() {
+  const name = el('new-link-name').value.trim();
+  const url = el('new-link-url').value.trim();
+  if (!name || !url) { showToast('請填入名稱和連結'); return; }
+  state.toolsData.productLinks.push({ name, url });
+  el('new-link-name').value = ''; el('new-link-url').value = '';
+  saveTools(); renderTools();
+  showToast('產品連結已新增');
+}
+
+function removeProductLink(i) {
+  state.toolsData.productLinks.splice(i, 1);
+  saveTools(); renderTools();
+}
+
+function addResponseTemplate() {
+  const title = el('new-tmpl-title').value.trim();
+  const content = el('new-tmpl-content').value.trim();
+  if (!title || !content) { showToast('請填入標題和內容'); return; }
+  state.toolsData.responseTemplates.push({ title, content });
+  el('new-tmpl-title').value = ''; el('new-tmpl-content').value = '';
+  saveTools(); renderTools();
+  showToast('應答樣板已新增');
+}
+
+function removeResponseTemplate(i) {
+  state.toolsData.responseTemplates.splice(i, 1);
+  saveTools(); renderTools();
+}
+
+// ============================================================
+// ============================================================
+// STATS & CHARTS
+// ============================================================
+function renderStats() {
+  const period = el('stats-period')?.value || 'monthly';
+  const allQuotes = [];
+  state.customers.forEach(c => {
+    (c.quotes || []).forEach(q => {
+      allQuotes.push({ date: q.date, amount: q.totalAmount || 0, customer: c.name, country: c.country || 'Unknown', products: q.products || [] });
+    });
+  });
+
+  // Group by period
+  function getPeriodKey(dateStr) {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return null;
+    const y = d.getFullYear(), m = d.getMonth(), w = getWeekNum(d);
+    if (period === 'weekly') return `${y}-W${String(w).padStart(2,'0')}`;
+    if (period === 'monthly') return `${y}-${String(m+1).padStart(2,'0')}`;
+    if (period === 'quarterly') return `${y}-Q${Math.floor(m/3)+1}`;
+    return dateStr;
+  }
+  function getWeekNum(d) {
+    const onejan = new Date(d.getFullYear(),0,1);
+    return Math.ceil(((d - onejan) / 86400000 + onejan.getDay()+1)/7);
+  }
+
+  const grouped = {};
+  allQuotes.forEach(q => {
+    const key = getPeriodKey(q.date);
+    if (!key) return;
+    if (!grouped[key]) grouped[key] = { amount: 0, count: 0 };
+    grouped[key].amount += q.amount;
+    grouped[key].count += 1;
+  });
+
+  const keys = Object.keys(grouped).sort();
+  const amounts = keys.map(k => grouped[k].amount);
+  const counts = keys.map(k => grouped[k].count);
+
+  // Summary
+  const totalAmount = allQuotes.reduce((s,q) => s + q.amount, 0);
+  const totalCount = allQuotes.length;
+  const avgAmount = totalCount > 0 ? totalAmount / totalCount : 0;
+  const customerCount = new Set(allQuotes.map(q => q.customer)).size;
+
+  el('stats-summary').innerHTML = `
+    <div class="dash-stat money"><div class="ds-value">$${totalAmount > 0 ? Math.round(totalAmount).toLocaleString() : '0'}</div><div class="ds-label">報價總金額</div></div>
+    <div class="dash-stat active"><div class="ds-value">${totalCount}</div><div class="ds-label">總報價次數</div></div>
+    <div class="dash-stat today"><div class="ds-value">$${avgAmount > 0 ? Math.round(avgAmount).toLocaleString() : '0'}</div><div class="ds-label">平均每筆金額</div></div>
+    <div class="dash-stat"><div class="ds-value">${customerCount}</div><div class="ds-label">報價客戶數</div></div>
+  `;
+
+  // Draw bar chart - Revenue
+  drawBarChart('chart-revenue', keys, amounts, '#4285f4', 'US$');
+  // Draw bar chart - Count
+  drawBarChart('chart-count', keys, counts, '#0f9d58', '筆');
+
+  // Country pie chart
+  const countryMap = {};
+  allQuotes.forEach(q => { countryMap[q.country] = (countryMap[q.country] || 0) + q.amount; });
+  const countryEntries = Object.entries(countryMap).sort((a,b) => b[1] - a[1]).slice(0, 8);
+  drawPieChart('chart-country', countryEntries.map(e => e[0]), countryEntries.map(e => e[1]));
+
+  // Product pie chart
+  const prodMap = {};
+  allQuotes.forEach(q => {
+    (q.products || []).forEach(p => {
+      const name = p.name || 'Unknown';
+      prodMap[name] = (prodMap[name] || 0) + (p.unitPrice * p.qty);
+    });
+  });
+  const prodEntries = Object.entries(prodMap).sort((a,b) => b[1] - a[1]).slice(0, 8);
+  drawPieChart('chart-product', prodEntries.map(e => e[0]), prodEntries.map(e => e[1]));
+}
+
+function drawBarChart(canvasId, labels, values, color, unit) {
+  const canvas = el(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.parentElement.clientWidth || 600;
+  const h = 250;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  if (labels.length === 0) {
+    ctx.fillStyle = '#999'; ctx.font = '14px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('尚無報價資料', w/2, h/2);
+    return;
+  }
+
+  const padding = { top: 20, right: 20, bottom: 50, left: 60 };
+  const chartW = w - padding.left - padding.right;
+  const chartH = h - padding.top - padding.bottom;
+  const max = Math.max(...values, 1) * 1.15;
+  const barW = Math.min(40, (chartW / labels.length) * 0.6);
+  const gap = chartW / labels.length;
+
+  // Grid lines
+  ctx.strokeStyle = '#e8e8e8'; ctx.lineWidth = 0.5;
+  for (let i = 0; i <= 4; i++) {
+    const y = padding.top + chartH - (chartH * i / 4);
+    ctx.beginPath(); ctx.moveTo(padding.left, y); ctx.lineTo(w - padding.right, y); ctx.stroke();
+    ctx.fillStyle = '#999'; ctx.font = '10px sans-serif'; ctx.textAlign = 'right';
+    const val = (max * i / 4);
+    ctx.fillText(val >= 1000 ? Math.round(val/1000) + 'k' : Math.round(val), padding.left - 5, y + 3);
+  }
+
+  // Bars
+  labels.forEach((label, i) => {
+    const x = padding.left + i * gap + (gap - barW) / 2;
+    const barH = (values[i] / max) * chartH;
+    const y = padding.top + chartH - barH;
+
+    // Gradient bar
+    const grad = ctx.createLinearGradient(x, y, x, y + barH);
+    grad.addColorStop(0, color);
+    grad.addColorStop(1, color + '88');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.roundRect(x, y, barW, barH, [3, 3, 0, 0]);
+    ctx.fill();
+
+    // Value on top
+    ctx.fillStyle = '#333'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+    const displayVal = values[i] >= 1000 ? (values[i]/1000).toFixed(1) + 'k' : Math.round(values[i]);
+    ctx.fillText(displayVal, x + barW/2, y - 5);
+
+    // Label
+    ctx.fillStyle = '#666'; ctx.font = '10px sans-serif';
+    ctx.save();
+    ctx.translate(x + barW/2, h - 5);
+    ctx.rotate(-0.4);
+    ctx.fillText(label, 0, 0);
+    ctx.restore();
+  });
+}
+
+function drawPieChart(canvasId, labels, values) {
+  const canvas = el(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.parentElement.clientWidth || 300;
+  const h = 250;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  if (labels.length === 0) {
+    ctx.fillStyle = '#999'; ctx.font = '14px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('尚無資料', w/2, h/2);
+    return;
+  }
+
+  const colors = ['#4285f4','#ea4335','#fbbc04','#0f9d58','#ab47bc','#ff7043','#26a69a','#78909c'];
+  const total = values.reduce((s,v) => s + v, 0);
+  const cx = w * 0.35, cy = h / 2, r = Math.min(cx - 10, cy - 20);
+
+  let angle = -Math.PI / 2;
+  labels.forEach((label, i) => {
+    const slice = (values[i] / total) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, angle, angle + slice);
+    ctx.closePath();
+    ctx.fillStyle = colors[i % colors.length];
+    ctx.fill();
+    angle += slice;
+  });
+
+  // Legend
+  const legendX = w * 0.65;
+  let legendY = 20;
+  labels.forEach((label, i) => {
+    ctx.fillStyle = colors[i % colors.length];
+    ctx.fillRect(legendX, legendY, 10, 10);
+    ctx.fillStyle = '#333'; ctx.font = '11px sans-serif'; ctx.textAlign = 'left';
+    const pct = total > 0 ? ((values[i]/total)*100).toFixed(0) : 0;
+    const shortLabel = label.length > 12 ? label.slice(0, 12) + '..' : label;
+    ctx.fillText(`${shortLabel} (${pct}%)`, legendX + 14, legendY + 9);
+    legendY += 18;
+  });
+}
+
+// ============================================================
+// TIERS & TEMPLATES
+// ============================================================
+function renderTiers() {
+  el('tier-body').innerHTML = state.tiers.map((t, i) => `
+    <tr>
+      <td><input type="number" value="${t.min}" style="width:60px;text-align:center;border:1px solid #ddd;border-radius:4px;padding:2px 4px;" onchange="updateTier(${i},'min',this.value)"> ~ <input type="number" value="${t.max}" style="width:60px;text-align:center;border:1px solid #ddd;border-radius:4px;padding:2px 4px;" onchange="updateTier(${i},'max',this.value)"> pcs</td>
+      <td><input type="number" step="0.01" value="${t.ratio}" style="width:60px;text-align:center;border:1px solid #ddd;border-radius:4px;padding:2px 4px;" onchange="updateTier(${i},'ratio',this.value)"></td>
+      <td style="color:#0f9d58;font-weight:600;">${((1-t.ratio)*100).toFixed(0)}%</td>
+      <td><button class="btn btn-danger btn-sm" onclick="removeTier(${i})">刪除</button></td>
+    </tr>`).join('');
+}
+function updateTier(i,f,v) { state.tiers[i][f]=parseFloat(v); renderTiers(); saveSettings(); recalc(); }
+function addTier() { const l=state.tiers[state.tiers.length-1]; state.tiers.push({min:l.max,max:l.max*2,ratio:0.9,label:`${l.max}+ pcs`}); renderTiers(); saveSettings(); }
+function removeTier(i) { if(state.tiers.length<=1)return; state.tiers.splice(i,1); renderTiers(); saveSettings(); recalc(); }
+
+function renderTemplates() {
+  el('templates-list').innerHTML = state.templates.map((t, i) => `
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+      <input value="${escapeAttr(t.name)}" style="flex:2;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;" onchange="updateTemplate(${i},'name',this.value)">
+      <input value="${escapeAttr(t.nameEn)}" style="flex:2;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;" placeholder="英文名" onchange="updateTemplate(${i},'nameEn',this.value)">
+      <input type="number" step="0.01" value="${t.rmbCost}" style="width:80px;padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;text-align:center;" onchange="updateTemplate(${i},'rmbCost',parseFloat(this.value))">
+      <span style="font-size:12px;color:#888;">RMB</span>
+      <button class="btn btn-danger btn-sm" onclick="removeTemplate(${i})">刪除</button>
+    </div>`).join('');
+}
+function updateTemplate(i,f,v) { state.templates[i][f]=v; saveSettings(); saveProductValues(); renderProducts(); restoreProductValues(); }
+function addTemplate() { state.templates.push({name:'新產品',nameEn:'New Product',rmbCost:0}); renderTemplates(); saveSettings(); }
+function removeTemplate(i) { state.templates.splice(i,1); renderTemplates(); saveSettings(); }
+
+// ============================================================
+// HELPERS
+// ============================================================
+function el(id) { return document.getElementById(id); }
+function elVal(id) { const e = el(id); return e ? e.value : ''; }
+
+function switchTab(name) {
+  const tabs = ['quote','crm','settings'];
+  document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', tabs[i] === name));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  el('tab-' + name).classList.add('active');
+  if (name === 'crm') { renderCRM(); renderOrders(); renderTools(); }
+}
+
+function switchCRMSub(name) {
+  state.crmSubTab = name;
+  const labels = { customers: '客戶總覽', orders: '訂單追蹤', stats: '統計報表', tools: '業務工具' };
+  document.querySelectorAll('.crm-subtab').forEach(t => t.classList.toggle('active', t.textContent.includes(labels[name] || '')));
+  document.querySelectorAll('.crm-subpanel').forEach(p => p.classList.remove('active'));
+  el('crm-sub-' + name).classList.add('active');
+  if (name === 'stats') renderStats();
+}
+
+function showToast(msg) {
+  const t = el('toast'); t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+function escapeHtml(str) { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
+function escapeAttr(str) { return (str||'').replace(/\\/g, '\\\\').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/`/g, '&#96;').replace(/\n/g, '\\n'); }
+
+checkAuth();
+</script>
+</body>
+</html>
