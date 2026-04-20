@@ -326,6 +326,15 @@ body { font-family: 'Segoe UI', -apple-system, sans-serif; background: #f0f2f5; 
         <div class="field" style="flex:2"><label>收件地址</label><input id="customerAddress" placeholder="完整收件地址"></div>
         <div class="field"><label>聯絡電話</label><input id="customerPhone" placeholder="電話號碼"></div>
         <div class="field"><label>Email</label><input id="customerEmail" placeholder="email@example.com"></div>
+        <div class="field" style="min-width:110px;flex:none;">
+          <label>報價帳號</label>
+          <select id="customerAccount">
+            <option value="主帳">主帳</option>
+            <option value="IRIS帳">IRIS帳</option>
+            <option value="TINA帳">TINA帳</option>
+            <option value="ElenaLin帳">ElenaLin帳</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -820,11 +829,11 @@ const DEFAULT_TIERS = [
 ];
 
 const DEFAULT_TEMPLATES = [
-  {name:'Black small hanger + gold hook (23CM)',nameEn:'Black small hanger + gold hook',rmbCost:3.5},
-  {name:'White small hanger + gold hook (23CM)',nameEn:'White small hanger + gold hook',rmbCost:3.5},
+  {name:'Black small hanger + gold hook',nameEn:'Black small hanger + gold hook',rmbCost:3.5},
+  {name:'White small hanger + gold hook',nameEn:'White small hanger + gold hook',rmbCost:3.5},
   {name:'Acrylic small hanger + gold hook',nameEn:'Acrylic small hanger + gold hook',rmbCost:4.58},
-  {name:'Glossy black hanger + gold hook (23CM)',nameEn:'Glossy black hanger + gold hook',rmbCost:4.2},
-  {name:'Glossy white hanger + chrome hook (23CM)',nameEn:'Glossy white hanger + chrome hook',rmbCost:5.2},
+  {name:'23CM Black hair hanger + gold hook',nameEn:'23CM Black hair hanger + gold hook',rmbCost:4.2},
+  {name:'23CM White hair hanger + gold hook',nameEn:'23CM White hair hanger + gold hook',rmbCost:4.2},
   {name:'White hanger + chrome hook (43CM)',nameEn:'White hanger + chrome hook',rmbCost:5},
   {name:'Wood hanger + gold hook (44.5CM)',nameEn:'Wood hanger + gold hook',rmbCost:6.4},
   {name:'26CM baby suit hanger + chrome flat hook',nameEn:'Wood baby suit hanger + chrome flat hook',rmbCost:3.9},
@@ -998,6 +1007,7 @@ function saveProductValues() {
     if (r) p._rmb = r.value;
     if (q) p._qty = q.value;
     if (m) p._manual = m.value;
+    const nt = el(`prod-note-${p.id}`); if (nt) p._note = nt.value;
   });
 }
 
@@ -1007,6 +1017,7 @@ function restoreProductValues() {
     if (p._rmb !== undefined) { const e = el(`prod-rmb-${p.id}`); if (e) e.value = p._rmb; }
     if (p._qty !== undefined) { const e = el(`prod-qty-${p.id}`); if (e) e.value = p._qty; }
     if (p._manual !== undefined) { const e = el(`prod-manual-${p.id}`); if (e) e.value = p._manual; }
+    if (p._note !== undefined) { const e = el(`prod-note-${p.id}`); if (e) e.value = p._note; }
   });
 }
 
@@ -1045,6 +1056,9 @@ function renderProducts() {
       <div class="row">
         <div class="field" style="flex:2;"><label>產品英文名稱</label><input id="prod-name-${p.id}" placeholder="e.g. Black small hanger + gold hook" oninput="recalc()"></div>
         <div class="field"><label>RMB 成本/個</label><input id="prod-rmb-${p.id}" type="number" step="0.01" placeholder="0" oninput="recalc()"></div>
+      </div>
+      <div class="row">
+        <div class="field" style="flex:3;"><label>產品備註（英文）</label><input id="prod-note-${p.id}" placeholder="e.g. with self adhesive layer / without steel ring"></div>
       </div>
       <div class="row">
         <div class="field"><label>數量 (pcs)</label><input id="prod-qty-${p.id}" type="number" value="100" oninput="recalc()"></div>
@@ -1164,6 +1178,7 @@ function generateQuote() {
   let idx = 0;
   state.products.forEach(p => {
     const name = elVal(`prod-name-${p.id}`) || 'Product';
+    const note = elVal(`prod-note-${p.id}`);
     const qty = parseInt(elVal(`prod-qty-${p.id}`)) || 0;
     const rmb = parseFloat(elVal(`prod-rmb-${p.id}`)) || 0;
     const manual = parseFloat(elVal(`prod-manual-${p.id}`));
@@ -1171,6 +1186,7 @@ function generateQuote() {
     const final_ = isNaN(manual) || manual <= 0 ? auto : manual;
     idx++;
     lines.push(state.products.length > 1 ? `${idx}. ${name}:` : `${name}:`);
+    if (note) lines.push(`(${note})`);
     lines.push(`Quantity: ${qty} pcs`);
     lines.push(`Price: US ${final_.toFixed(2)} /pc`);
     lines.push('---');
@@ -1220,6 +1236,7 @@ function resetQuoteForm() {
   el('customerAddress').value = '';
   el('customerPhone').value = '';
   el('customerEmail').value = '';
+  if (el('customerAccount')) el('customerAccount').value = '主帳';
   el('shippingUSD').value = '0';
   el('shippingRMB').value = '';
   el('shippingMarkup').value = '1.2';
@@ -1256,12 +1273,13 @@ function exportPDF() {
   let totalProducts = 0;
   state.products.forEach(p => {
     const name = elVal(`prod-name-${p.id}`) || 'Product';
+    const note = elVal(`prod-note-${p.id}`);
     const qty = parseInt(elVal(`prod-qty-${p.id}`)) || 0;
     const rmb = parseFloat(elVal(`prod-rmb-${p.id}`)) || 0;
     const manual = parseFloat(elVal(`prod-manual-${p.id}`));
     const auto = calcUSD(rmb, qty);
     const final_ = isNaN(manual) || manual <= 0 ? auto : manual;
-    products.push({ name, qty, unitPrice: final_, subtotal: final_ * qty });
+    products.push({ name, note, qty, unitPrice: final_, subtotal: final_ * qty });
     totalProducts += final_ * qty;
   });
 
@@ -1280,7 +1298,7 @@ function exportPDF() {
   // Build product rows
   const prodRows = products.map((p, i) => `
     <tr><td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;">${i+1}</td>
-    <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;">${esc(p.name)}</td>
+    <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;">${esc(p.name)}${p.note ? `<div style="font-size:11px;color:#666;margin-top:2px;">(${esc(p.note)})</div>` : ''}</td>
     <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;text-align:center;">${p.qty}</td>
     <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;text-align:right;">US$ ${p.unitPrice.toFixed(2)}</td>
     <td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;text-align:right;">US$ ${p.subtotal.toFixed(2)}</td></tr>
@@ -1373,11 +1391,14 @@ function saveQuoteAndCRM() {
     products, totalLogo, shipping, totalAmount, quoteText
   };
 
+  const account = el('customerAccount')?.value || '主帳';
+
   let customer = state.customers.find(c => c.name.toLowerCase() === customerName.toLowerCase());
   if (!customer) {
     customer = {
       id: Date.now(), name: customerName,
       country, postcode, address, phone, email,
+      account,
       status: 'quoted',
       importance: 2, tags: [], followUpDate: '', productType: '', estimatedAmount: 0,
       quotes: [], notes: [],
@@ -1390,6 +1411,7 @@ function saveQuoteAndCRM() {
     if (address) customer.address = address;
     if (phone) customer.phone = phone;
     if (email) customer.email = email;
+    customer.account = account;
     if (customer.status === 'inquiry') customer.status = 'quoted';
   }
 
@@ -1553,6 +1575,7 @@ function renderCRM() {
       </div>
 
       <div class="cc-meta">
+        ${c.account ? `<span style="background:#e8eaf6;color:#3949ab;padding:1px 8px;border-radius:10px;font-size:10px;font-weight:600;">${escapeHtml(c.account)}</span>` : ''}
         ${tagsHTML}
         ${c.productType ? `<span style="color:#555;">| ${escapeHtml(c.productType)}</span>` : ''}
         <span class="cc-followup ${fuClass}">${fuText}</span>
@@ -1649,6 +1672,7 @@ function loadCustomerToQuote(custId) {
   el('customerAddress').value = c.address || '';
   el('customerPhone').value = c.phone || '';
   el('customerEmail').value = c.email || '';
+  if (el('customerAccount')) el('customerAccount').value = c.account || '主帳';
   onCountryChange();
   switchTab('quote');
   showToast(`已載入 ${c.name} 的客戶資料`);
