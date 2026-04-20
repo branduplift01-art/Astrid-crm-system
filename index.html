@@ -184,6 +184,7 @@ body { font-family: 'Segoe UI', -apple-system, sans-serif; background: #f0f2f5; 
 .status-in_production { background: #e0f2f1; color: #00695c; }
 .status-shipped { background: #e8f5e9; color: #2e7d32; }
 .status-completed { background: #e8eaf6; color: #283593; }
+.status-ordered { background: #1a1a2e; color: #ffffff; }
 
 .timeline { margin-top: 8px; padding-left: 16px; border-left: 2px solid #e0e0e0; }
 .timeline-item { margin-bottom: 8px; padding-left: 12px; position: relative; }
@@ -326,9 +327,11 @@ body { font-family: 'Segoe UI', -apple-system, sans-serif; background: #f0f2f5; 
         <div class="field" style="flex:2"><label>收件地址</label><input id="customerAddress" placeholder="完整收件地址"></div>
         <div class="field"><label>聯絡電話</label><input id="customerPhone" placeholder="電話號碼"></div>
         <div class="field"><label>Email</label><input id="customerEmail" placeholder="email@example.com"></div>
-        <div class="field" style="min-width:110px;flex:none;">
-          <label>報價帳號</label>
-          <select id="customerAccount">
+      </div>
+      <div class="row">
+        <div class="field" style="max-width:200px;">
+          <label style="color:#3949ab;font-weight:600;">📋 報價帳號</label>
+          <select id="customerAccount" style="border-color:#3949ab;">
             <option value="主帳">主帳</option>
             <option value="IRIS帳">IRIS帳</option>
             <option value="TINA帳">TINA帳</option>
@@ -851,6 +854,7 @@ const CRM_STATUSES = [
   {value:'quoted', label:'已報價', class:'status-quoted'},
   {value:'following', label:'跟進中', class:'status-following'},
   {value:'pending_payment', label:'待付款', class:'status-pending_payment'},
+  {value:'ordered', label:'已下單', class:'status-ordered'},
   {value:'in_production', label:'生產中', class:'status-in_production'},
   {value:'shipped', label:'已出貨', class:'status-shipped'},
   {value:'completed', label:'完成/復購', class:'status-completed'},
@@ -980,6 +984,7 @@ async function loadAllData() {
       if (c.status === 'new')  c.status = 'inquiry';
       if (c.status === 'won')  c.status = 'completed';
       if (c.status === 'lost') c.status = 'completed';
+      if (!c.account) c.account = '';
     });
   }
 
@@ -1637,18 +1642,49 @@ function cycleImportance(custId) {
 
 function updateStatus(custId, newStatus) {
   const c = state.customers.find(x => x.id === custId);
-  if (c) {
-    const oldLabel = CRM_STATUSES.find(s=>s.value===c.status)?.label || c.status;
-    const newLabel = CRM_STATUSES.find(s=>s.value===newStatus)?.label || newStatus;
-    c.status = newStatus;
-    c.notes.unshift({
-      date: new Date().toISOString().slice(0, 10),
-      text: `狀態變更: ${oldLabel} → ${newLabel}`,
-      type: 'status'
-    });
-    saveCRM(); renderCRM();
-    showToast(`客戶狀態已更新為「${newLabel}」`);
+  if (!c) return;
+  const oldLabel = CRM_STATUSES.find(s=>s.value===c.status)?.label || c.status;
+  const newLabel = CRM_STATUSES.find(s=>s.value===newStatus)?.label || newStatus;
+  c.status = newStatus;
+  c.notes.unshift({
+    date: new Date().toISOString().slice(0, 10),
+    text: `狀態變更: ${oldLabel} → ${newLabel}`,
+    type: 'status'
+  });
+
+  // 切換到「已下單」時自動建立訂單
+  if (newStatus === 'ordered') {
+    const alreadyExists = state.orders.some(o => o.customerId === c.id && o.autoCreated && o.createdAt === new Date().toISOString().slice(0,10));
+    if (!alreadyExists) {
+      const lastQuote = c.quotes && c.quotes.length > 0 ? c.quotes[0] : null;
+      const productDesc = lastQuote ? lastQuote.products.map(p => `${p.name} x${p.qty}`).join(', ') : '';
+      const newOrder = {
+        id: Date.now(),
+        customerId: c.id,
+        customerName: c.name,
+        country: c.country || '',
+        product: productDesc,
+        rmbAmount: 0,
+        orderConfirmed: true,
+        paymentDone: false,
+        shipped: false,
+        supplier: '', forwarder: '', shipType: '',
+        factoryNote: '', trackingNumber: '',
+        address: c.address || '',
+        notes: c.account ? `帳號: ${c.account}` : '',
+        stage: 'pending',
+        autoCreated: true,
+        createdAt: new Date().toISOString().slice(0,10),
+        updatedAt: new Date().toISOString().slice(0,10)
+      };
+      state.orders.unshift(newOrder);
+      saveOrders();
+      showToast(`已自動建立訂單！請到訂單追蹤補充詳細資料`);
+    }
   }
+
+  saveCRM(); renderCRM();
+  if (newStatus !== 'ordered') showToast(`客戶狀態已更新為「${newLabel}」`);
 }
 
 function addNote(custId) {
