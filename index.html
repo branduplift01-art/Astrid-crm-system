@@ -1654,10 +1654,21 @@ function updateStatus(custId, newStatus) {
 
   // 切換到「已下單」時自動建立訂單
   if (newStatus === 'ordered') {
-    const alreadyExists = state.orders.some(o => o.customerId === c.id && o.autoCreated && o.createdAt === new Date().toISOString().slice(0,10));
+    const alreadyExists = state.orders.some(o => o.customerId === c.id && o.stage !== 'done' && o.autoCreated);
     if (!alreadyExists) {
       const lastQuote = c.quotes && c.quotes.length > 0 ? c.quotes[0] : null;
-      const productDesc = lastQuote ? lastQuote.products.map(p => `${p.name} x${p.qty}`).join(', ') : '';
+      const productDesc = lastQuote
+        ? lastQuote.products.map(p => `${p.name} x${p.qty}${p.unitPrice ? ' (US$'+p.unitPrice.toFixed(2)+'/pc)' : ''}`).join('\n')
+        : '';
+      const noteLines = [];
+      if (c.account) noteLines.push(`帳號: ${c.account}`);
+      if (lastQuote) {
+        noteLines.push(`報價日期: ${lastQuote.date}`);
+        noteLines.push(`報價總額: US$${lastQuote.totalAmount.toFixed(0)}`);
+        if (lastQuote.shipping > 0) noteLines.push(`運費: US$${lastQuote.shipping.toFixed(0)}`);
+      }
+      if (c.email) noteLines.push(`Email: ${c.email}`);
+      if (c.phone) noteLines.push(`電話: ${c.phone}`);
       const newOrder = {
         id: Date.now(),
         customerId: c.id,
@@ -1665,21 +1676,22 @@ function updateStatus(custId, newStatus) {
         country: c.country || '',
         product: productDesc,
         rmbAmount: 0,
+        usdAmount: lastQuote ? lastQuote.totalAmount : 0,
         orderConfirmed: true,
         paymentDone: false,
         shipped: false,
         supplier: '', forwarder: '', shipType: '',
         factoryNote: '', trackingNumber: '',
         address: c.address || '',
-        notes: c.account ? `帳號: ${c.account}` : '',
+        notes: noteLines.join('\n'),
         stage: 'pending',
         autoCreated: true,
         createdAt: new Date().toISOString().slice(0,10),
         updatedAt: new Date().toISOString().slice(0,10)
       };
       state.orders.unshift(newOrder);
-      saveOrders();
-      showToast(`已自動建立訂單！請到訂單追蹤補充詳細資料`);
+      saveOrders(); renderOrders();
+      showToast('✅ 訂單已自動建立！請到訂單追蹤確認並補充廠商資料');
     }
   }
 
@@ -1832,7 +1844,8 @@ function renderOrders() {
         <label class="oc-check"><input type="checkbox" ${o.paymentDone?'checked':''} onchange="toggleOrderField(${o.id},'paymentDone',this.checked)"> 代付</label>
         <label class="oc-check"><input type="checkbox" ${o.shipped?'checked':''} onchange="toggleOrderField(${o.id},'shipped',this.checked)"> 出貨</label>
       </div>
-      ${o.rmbAmount ? `<div class="oc-field"><strong>金額:</strong> ¥${o.rmbAmount}</div>` : ''}
+      ${o.usdAmount > 0 ? `<div class="oc-field"><strong>報價金額:</strong> US$${Number(o.usdAmount).toFixed(0)}</div>` : ''}
+      ${o.rmbAmount > 0 ? `<div class="oc-field"><strong>工廠金額:</strong> ¥${o.rmbAmount}</div>` : ''}
       <div class="oc-field" style="display:flex;gap:12px;flex-wrap:wrap;">
         ${o.supplier ? `<span><strong>廠商:</strong> ${escapeHtml(o.supplier)}</span>` : ''}
         ${o.forwarder ? `<span><strong>代運:</strong> ${escapeHtml(o.forwarder)}</span>` : ''}
@@ -2304,6 +2317,7 @@ function switchCRMSub(name) {
   document.querySelectorAll('.crm-subpanel').forEach(p => p.classList.remove('active'));
   el('crm-sub-' + name).classList.add('active');
   if (name === 'stats') renderStats();
+  if (name === 'orders') renderOrders();
 }
 
 function showToast(msg, isError = false) {
