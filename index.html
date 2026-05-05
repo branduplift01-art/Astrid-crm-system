@@ -461,11 +461,29 @@ body { font-family: 'Segoe UI', -apple-system, sans-serif; background: #f0f2f5; 
             <option value="quarterly">按季統計</option>
           </select>
         </div>
+
+        <div style="font-size:12px;font-weight:600;color:#4285f4;margin-bottom:6px;padding-bottom:4px;border-bottom:2px solid #e3f2fd;">
+          💬 報價統計
+        </div>
         <div class="dashboard-stats" style="margin-bottom:20px;" id="stats-summary"></div>
+
+        <div style="font-size:12px;font-weight:600;color:#0f9d58;margin-bottom:6px;padding-bottom:4px;border-bottom:2px solid #e8f5e9;">
+          📦 訂單統計
+        </div>
+        <div class="dashboard-stats" id="order-stats-summary"></div>
       </div>
 
       <div class="card">
-        <h2><span class="icon" style="background:#e3f2fd;">💰</span> 報價金額趨勢</h2>
+        <div style="font-size:12px;font-weight:600;color:#f57c00;margin-bottom:6px;padding-bottom:4px;border-bottom:2px solid #fff3e0;">
+          🎯 報價轉換率
+        </div>
+        <div class="dashboard-stats" style="margin-bottom:20px;" id="conversion-summary"></div>
+        <h2 style="margin-top:4px;"><span class="icon" style="background:#fff3e0;">📊</span> 報價 vs 訂單 趨勢對比</h2>
+        <canvas id="chart-conversion" height="280" style="width:100%;"></canvas>
+      </div>
+
+      <div class="card">
+        <h2><span class="icon" style="background:#e3f2fd;">💰</span> 報價金額趨勢 (USD)</h2>
         <canvas id="chart-revenue" height="250" style="width:100%;"></canvas>
       </div>
 
@@ -474,14 +492,35 @@ body { font-family: 'Segoe UI', -apple-system, sans-serif; background: #f0f2f5; 
         <canvas id="chart-count" height="250" style="width:100%;"></canvas>
       </div>
 
+      <div class="card">
+        <h2><span class="icon" style="background:#e8f5e9;">📦</span> 訂單金額趨勢 (USD)</h2>
+        <canvas id="chart-order-revenue" height="250" style="width:100%;"></canvas>
+      </div>
+
+      <div class="card">
+        <h2><span class="icon" style="background:#e0f2f1;">🗂️</span> 訂單數量趨勢</h2>
+        <canvas id="chart-order-count" height="250" style="width:100%;"></canvas>
+      </div>
+
       <div class="card" style="display:flex;gap:16px;flex-wrap:wrap;">
         <div style="flex:1;min-width:280px;">
-          <h2><span class="icon" style="background:#e0f2f1;">🌍</span> 國家分佈</h2>
+          <h2><span class="icon" style="background:#e0f2f1;">🌍</span> 報價國家分佈</h2>
           <canvas id="chart-country" height="250"></canvas>
         </div>
         <div style="flex:1;min-width:280px;">
-          <h2><span class="icon" style="background:#fff3e0;">📦</span> 產品分佈</h2>
+          <h2><span class="icon" style="background:#fff3e0;">📦</span> 報價產品分佈</h2>
           <canvas id="chart-product" height="250"></canvas>
+        </div>
+      </div>
+
+      <div class="card" style="display:flex;gap:16px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:280px;">
+          <h2><span class="icon" style="background:#e8f5e9;">🌍</span> 訂單國家分佈</h2>
+          <canvas id="chart-order-country" height="250"></canvas>
+        </div>
+        <div style="flex:1;min-width:280px;">
+          <h2><span class="icon" style="background:#f3e5f5;">📦</span> 訂單產品分佈</h2>
+          <canvas id="chart-order-product" height="250"></canvas>
         </div>
       </div>
     </div>
@@ -866,6 +905,7 @@ const ORDER_STAGES = [
   {value:'producing', label:'生產中'},
   {value:'ready', label:'待出貨'},
   {value:'shipped', label:'已出貨'},
+  {value:'review', label:'邀請評價'},
   {value:'done', label:'完成'},
 ];
 
@@ -922,7 +962,8 @@ let state = {
   crmTagFilter: '',
   crmSpecialFilter: '',
   crmSubTab: 'customers',
-  orderFilter: 'all'
+  orderFilter: 'all',
+  showArchived: false
 };
 
 // ============================================================
@@ -991,6 +1032,57 @@ async function loadAllData() {
   // Orders
   const orders = await dbLoad('orders');
   if (orders) state.orders = orders;
+
+  // 補救：幫所有已進入訂單流程但尚無訂單記錄的客戶自動建立訂單
+  const ORDER_STATUS_MAP = {
+    'ordered':       { stage: 'pending',   orderConfirmed: true,  paymentDone: false, shipped: false },
+    'in_production': { stage: 'producing', orderConfirmed: true,  paymentDone: true,  shipped: false },
+    'shipped':       { stage: 'shipped',   orderConfirmed: true,  paymentDone: true,  shipped: true  },
+    'completed':     { stage: 'done',      orderConfirmed: true,  paymentDone: true,  shipped: true  },
+  };
+  let needSave = false;
+  state.customers.forEach(c => {
+    const mapping = ORDER_STATUS_MAP[c.status];
+    if (!mapping) return;
+    const hasOrder = state.orders.some(o => o.customerId === c.id);
+    if (!hasOrder) {
+      const lastQuote = c.quotes && c.quotes.length > 0 ? c.quotes[0] : null;
+      const productDesc = lastQuote
+        ? lastQuote.products.map(p => `${p.name} x${p.qty}${p.unitPrice ? ' (US$'+p.unitPrice.toFixed(2)+'/pc)' : ''}`).join('\n')
+        : '';
+      const noteLines = [];
+      if (c.account) noteLines.push(`帳號: ${c.account}`);
+      if (lastQuote) {
+        noteLines.push(`報價日期: ${lastQuote.date}`);
+        noteLines.push(`報價總額: US$${lastQuote.totalAmount.toFixed(0)}`);
+        if (lastQuote.shipping > 0) noteLines.push(`運費: US$${lastQuote.shipping.toFixed(0)}`);
+      }
+      if (c.email) noteLines.push(`Email: ${c.email}`);
+      if (c.phone) noteLines.push(`電話: ${c.phone}`);
+      state.orders.unshift({
+        id: Date.now() + Math.floor(Math.random() * 99999),
+        customerId: c.id,
+        customerName: c.name,
+        country: c.country || '',
+        product: productDesc,
+        rmbAmount: 0,
+        usdAmount: lastQuote ? lastQuote.totalAmount : 0,
+        orderConfirmed: mapping.orderConfirmed,
+        paymentDone: mapping.paymentDone,
+        shipped: mapping.shipped,
+        supplier: '', forwarder: '', shipType: '',
+        factoryNote: '', trackingNumber: '',
+        address: c.address || '',
+        notes: noteLines.join('\n'),
+        stage: mapping.stage,
+        autoCreated: true,
+        createdAt: c.createdAt || new Date().toISOString().slice(0,10),
+        updatedAt: new Date().toISOString().slice(0,10)
+      });
+      needSave = true;
+    }
+  });
+  if (needSave) dbSave('orders', state.orders);
 
   // Tools
   const tools = await dbLoad('tools');
@@ -1442,9 +1534,11 @@ function saveQuoteAndCRM() {
 // ============================================================
 function renderDashboard() {
   const today = new Date().toISOString().slice(0, 10);
-  const overdue = state.customers.filter(c => c.followUpDate && c.followUpDate < today).length;
-  const dueToday = state.customers.filter(c => c.followUpDate === today).length;
+  const trackable = state.customers.filter(c => !c.noTracking);
+  const overdue = trackable.filter(c => c.followUpDate && c.followUpDate < today).length;
+  const dueToday = trackable.filter(c => c.followUpDate === today).length;
   const activeOrders = state.orders.filter(o => o.stage !== 'done').length;
+  const orderReminders = state.orders.filter(o => o.followUpDate && o.followUpDate <= today).length;
   const estTotal = state.customers.reduce((s, c) => s + (c.estimatedAmount || 0), 0);
 
   el('crm-dashboard').innerHTML = `
@@ -1455,20 +1549,29 @@ function renderDashboard() {
       <div class="ds-value">${dueToday}</div><div class="ds-label">📅 今日待追蹤</div>
     </div>
     <div class="dash-stat active"><div class="ds-value">${activeOrders}</div><div class="ds-label">進行中訂單</div></div>
-    <div class="dash-stat money"><div class="ds-value">$${estTotal > 0 ? estTotal.toLocaleString() : '0'}</div><div class="ds-label">預估總金額</div></div>
+    ${orderReminders > 0 ? `<div class="dash-stat urgent" onclick="switchCRMSub('orders')" title="點擊查看訂單"><div class="ds-value">${orderReminders}</div><div class="ds-label">📦 訂單待追蹤</div></div>` : `<div class="dash-stat money"><div class="ds-value">$${estTotal > 0 ? estTotal.toLocaleString() : '0'}</div><div class="ds-label">預估總金額</div></div>`}
   `;
 }
 
 // ============================================================
 // CRM - CUSTOMER LIST
 // ============================================================
+// Statuses that have graduated to orders — hidden from CRM quote view
+const ORDER_STAGE_STATUSES = ['ordered', 'in_production', 'shipped', 'completed'];
+const QUOTE_ONLY_STATUSES = CRM_STATUSES.filter(s => !ORDER_STAGE_STATUSES.includes(s.value));
+
 function renderCRM() {
   renderDashboard();
 
-  const counts = { all: state.customers.length };
-  CRM_STATUSES.forEach(s => { counts[s.value] = state.customers.filter(c => c.status === s.value).length; });
+  // Separate active vs archived customers
+  const activeCustomers = state.customers.filter(c => !ORDER_STAGE_STATUSES.includes(c.status) && !c.noTracking);
+  const archivedCustomers = state.customers.filter(c => !ORDER_STAGE_STATUSES.includes(c.status) && c.noTracking);
 
-  const usedTags = [...new Set(state.customers.flatMap(c => c.tags || []))].sort();
+  const baseList = state.showArchived ? archivedCustomers : activeCustomers;
+  const counts = { all: baseList.length };
+  QUOTE_ONLY_STATUSES.forEach(s => { counts[s.value] = baseList.filter(c => c.status === s.value).length; });
+
+  const usedTags = [...new Set(baseList.flatMap(c => c.tags || []))].sort();
   const tagRow = usedTags.length > 0 ? `
     <div style="display:flex;gap:6px;flex-wrap:wrap;padding-top:8px;border-top:1px solid #f0f0f0;width:100%;">
       <span style="font-size:11px;color:#999;align-self:center;white-space:nowrap;">🏷️ 標籤:</span>
@@ -1477,16 +1580,19 @@ function renderCRM() {
     </div>` : '';
 
   el('crm-filters').innerHTML = `
-    <button class="crm-filter-btn ${state.crmFilter==='all'?'active':''}" onclick="setCRMFilter('all')">全部<span class="badge">${counts.all}</span></button>
-    ${CRM_STATUSES.map(s => `
-      <button class="crm-filter-btn ${state.crmFilter===s.value?'active':''}" onclick="setCRMFilter('${s.value}')">
-        ${s.label}<span class="badge">${counts[s.value] || 0}</span>
+    <button class="crm-filter-btn ${!state.showArchived && state.crmFilter==='all'?'active':''}" onclick="state.showArchived=false;setCRMFilter('all')">全部<span class="badge">${activeCustomers.length}</span></button>
+    ${QUOTE_ONLY_STATUSES.map(s => `
+      <button class="crm-filter-btn ${!state.showArchived && state.crmFilter===s.value?'active':''}" onclick="state.showArchived=false;setCRMFilter('${s.value}')">
+        ${s.label}<span class="badge">${activeCustomers.filter(c=>c.status===s.value).length}</span>
       </button>`).join('')}
+    <button class="crm-filter-btn ${state.showArchived?'active':''}" style="margin-left:auto;background:${state.showArchived?'#546e7a':'#eceff1'};color:${state.showArchived?'white':'#546e7a'};" onclick="state.showArchived=!state.showArchived;state.crmFilter='all';renderCRM()">
+      📦 封存客戶<span class="badge">${archivedCustomers.length}</span>
+    </button>
     ${tagRow}
   `;
 
   const search = (el('crm-search')?.value || '').toLowerCase();
-  let filtered = state.customers.filter(c => {
+  let filtered = baseList.filter(c => {
     if (state.crmFilter !== 'all' && c.status !== state.crmFilter) return false;
     if (search) {
       const haystack = [c.name, c.country, c.productType, ...(c.tags||[])].join(' ').toLowerCase();
@@ -1541,12 +1647,13 @@ function renderCRM() {
     const fuInfo = followUpInfo(c.followUpDate, today);
     const fuClass = fuInfo.cls, fuText = fuInfo.text;
 
-    // Card border class
+    // Card border — only highlight when overdue or 1 day away
     let cardClass = 'customer-card';
     if (c.followUpDate) {
-      if (c.followUpDate < today) cardClass += ' overdue';
-      else if (c.followUpDate === today) cardClass += ' due-today';
-      else { const d3 = new Date(); d3.setDate(d3.getDate()+3); if (c.followUpDate <= d3.toISOString().slice(0,10)) cardClass += ' due-soon'; }
+      const diff = Math.round((new Date(c.followUpDate) - new Date(today)) / 86400000);
+      if (diff < 0) cardClass += ' overdue';
+      else if (diff === 0) cardClass += ' due-today';
+      else if (diff === 1) cardClass += ' due-soon';
     }
 
     const tagsHTML = (c.tags || []).map(t => `<span class="cc-tag">${escapeHtml(t)}</span>`).join(' ');
@@ -1601,9 +1708,21 @@ function renderCRM() {
         </div>
       </details>
 
-      <div style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap;">
-        <button class="btn btn-copy btn-sm" onclick="loadCustomerToQuote(${c.id})">重新報價</button>
-        ${lastQuote ? `<button class="btn btn-sm" style="background:#666;color:white;" onclick="copyText(\`${escapeAttr(lastQuote.quoteText || '')}\`)">複製最近報價</button>` : ''}
+      <!-- 追蹤快速操作 -->
+      <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:8px;padding:6px 8px;background:#f8f9fa;border-radius:8px;border:1px solid #e8e8e8;">
+        <span style="font-size:10px;color:#888;white-space:nowrap;">📅 追單日:</span>
+        <input type="date" value="${c.followUpDate||''}" style="font-size:11px;padding:2px 5px;border:1px solid #ddd;border-radius:5px;" onchange="setFollowUpDate(${c.id},this.value)">
+        <button class="btn btn-sm" style="background:#e3f2fd;color:#1565c0;padding:2px 7px;font-size:11px;" onclick="quickFollowUp(${c.id},3)">+3天</button>
+        <button class="btn btn-sm" style="background:#e3f2fd;color:#1565c0;padding:2px 7px;font-size:11px;" onclick="quickFollowUp(${c.id},7)">+7天</button>
+        <button class="btn btn-sm" style="background:#e3f2fd;color:#1565c0;padding:2px 7px;font-size:11px;" onclick="quickFollowUp(${c.id},14)">+14天</button>
+        <button class="btn btn-sm" style="background:#e8f5e9;color:#2e7d32;padding:2px 7px;font-size:11px;" onclick="markFollowedUp(${c.id})">✅ 已追蹤</button>
+        <button class="btn btn-sm" style="background:#eceff1;color:#546e7a;padding:2px 7px;font-size:11px;" onclick="toggleNoTracking(${c.id})" title="封存此客戶">📦 封存</button>
+      </div>
+
+      <div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap;">
+        ${!c.noTracking ? `<button class="btn btn-copy btn-sm" onclick="loadCustomerToQuote(${c.id})">重新報價</button>` : ''}
+        ${!c.noTracking && lastQuote ? `<button class="btn btn-sm" style="background:#666;color:white;" onclick="copyText(\`${escapeAttr(lastQuote.quoteText || '')}\`)">複製最近報價</button>` : ''}
+        ${c.noTracking ? `<button class="btn btn-sm" style="background:#546e7a;color:white;" onclick="toggleNoTracking(${c.id})">📦 解除封存</button>` : ''}
         <button class="btn btn-sm" style="background:#7b1fa2;color:white;" onclick="showEditCustomer(${c.id})">編輯</button>
         ${currentRole==='admin'?`<button class="btn btn-danger btn-sm" onclick="deleteCustomer(${c.id})">刪除</button>`:''}
       </div>
@@ -1624,12 +1743,14 @@ function jumpToCustomers(specialFilter) {
 }
 
 function followUpInfo(dateStr, today) {
-  if (!dateStr) return { cls: 'nodate', text: '未設追單日' };
+  if (!dateStr) return { cls: 'nodate', text: '' };
   const diffDays = Math.round((new Date(dateStr) - new Date(today)) / 86400000);
-  if (diffDays < 0) return { cls: 'overdue', text: `⚠️ 已逾期 ${Math.abs(diffDays)} 天` };
-  if (diffDays === 0) return { cls: 'today', text: `📅 今天要追！` };
-  if (diffDays <= 7) return { cls: 'upcoming', text: `⏰ 還有 ${diffDays} 天` };
-  return { cls: 'upcoming', text: `📅 還有 ${diffDays} 天` };
+  const d = new Date(dateStr);
+  const label = `${d.getMonth()+1}/${d.getDate()}`;
+  if (diffDays < 0)   return { cls: 'overdue',  text: `⚠️ 應追 ${label}（已逾期 ${Math.abs(diffDays)} 天）` };
+  if (diffDays === 0) return { cls: 'today',    text: `📅 今天要追！` };
+  if (diffDays === 1) return { cls: 'upcoming', text: `⏰ 明天要追單（${label}）` };
+  return { cls: '', text: '' }; // 未來日期：靜默，不顯示提示
 }
 
 function cycleImportance(custId) {
@@ -1638,6 +1759,74 @@ function cycleImportance(custId) {
     c.importance = (c.importance || 2) % 4 + 1;
     saveCRM(); renderCRM();
   }
+}
+
+// Set follow-up date directly from card (date input)
+function setFollowUpDate(custId, dateVal) {
+  const c = state.customers.find(x => x.id === custId);
+  if (!c) return;
+  c.followUpDate = dateVal;
+  saveCRM(); renderCRM();
+}
+
+// Quick +N days follow-up
+function quickFollowUp(custId, days) {
+  const c = state.customers.find(x => x.id === custId);
+  if (!c) return;
+  const d = new Date(); d.setDate(d.getDate() + days);
+  c.followUpDate = d.toISOString().slice(0, 10);
+  saveCRM(); renderCRM();
+  showToast(`追單日設為 ${days} 天後`);
+}
+
+// Mark as followed-up: log note + clear date
+function markFollowedUp(custId) {
+  const c = state.customers.find(x => x.id === custId);
+  if (!c) return;
+  const today = new Date().toISOString().slice(0, 10);
+  c.notes = c.notes || [];
+  c.notes.unshift({ date: today, text: '✅ 已追蹤', type: 'note' });
+  c.followUpDate = '';
+  saveCRM(); renderCRM();
+  showToast('✅ 已標記追蹤完成，提醒已清除');
+}
+
+// Toggle no-tracking flag
+function toggleNoTracking(custId) {
+  const c = state.customers.find(x => x.id === custId);
+  if (!c) return;
+  c.noTracking = !c.noTracking;
+  if (c.noTracking) c.followUpDate = '';
+  saveCRM(); renderCRM();
+  showToast(c.noTracking ? '🔕 已設為不追蹤' : '🔔 已恢復追蹤');
+}
+
+// Order follow-up date setter
+function setOrderFollowUp(orderId, dateVal) {
+  const o = state.orders.find(x => x.id === orderId);
+  if (!o) return;
+  o.followUpDate = dateVal;
+  o.updatedAt = new Date().toISOString().slice(0, 10);
+  saveOrders(); renderOrders();
+}
+
+function quickOrderFollowUp(orderId, days) {
+  const o = state.orders.find(x => x.id === orderId);
+  if (!o) return;
+  const d = new Date(); d.setDate(d.getDate() + days);
+  o.followUpDate = d.toISOString().slice(0, 10);
+  o.updatedAt = new Date().toISOString().slice(0, 10);
+  saveOrders(); renderOrders();
+  showToast(`訂單提醒設為 ${days} 天後`);
+}
+
+function markOrderFollowedUp(orderId) {
+  const o = state.orders.find(x => x.id === orderId);
+  if (!o) return;
+  o.followUpDate = '';
+  o.updatedAt = new Date().toISOString().slice(0, 10);
+  saveOrders(); renderOrders();
+  showToast('✅ 訂單追蹤已清除');
 }
 
 function updateStatus(custId, newStatus) {
@@ -1825,8 +2014,18 @@ function renderOrders() {
 
   el('order-list').innerHTML = filtered.map(o => {
     const stageInfo = ORDER_STAGES.find(s => s.value === o.stage) || ORDER_STAGES[0];
+    const today = new Date().toISOString().slice(0, 10);
+    const ofu = o.followUpDate || '';
+    let orderCardStyle = '';
+    if (ofu) {
+      if (ofu < today) orderCardStyle = 'border-left:4px solid #e53935;';
+      else if (ofu === today) orderCardStyle = 'border-left:4px solid #f57c00;';
+      else orderCardStyle = 'border-left:4px solid #fdd835;';
+    }
+    const ofuDiff = ofu ? Math.round((new Date(ofu) - new Date(today)) / 86400000) : null;
+    const ofuText = ofu ? (ofuDiff < 0 ? `⚠️ 逾期 ${Math.abs(ofuDiff)} 天` : ofuDiff === 0 ? '📅 今天追蹤' : `⏰ ${ofuDiff} 天後`) : '';
     return `
-    <div class="order-card">
+    <div class="order-card" style="${orderCardStyle}">
       <div class="oc-header">
         <div>
           <span class="oc-name">${escapeHtml(o.customerName)}</span>
@@ -1844,7 +2043,11 @@ function renderOrders() {
         <label class="oc-check"><input type="checkbox" ${o.paymentDone?'checked':''} onchange="toggleOrderField(${o.id},'paymentDone',this.checked)"> 代付</label>
         <label class="oc-check"><input type="checkbox" ${o.shipped?'checked':''} onchange="toggleOrderField(${o.id},'shipped',this.checked)"> 出貨</label>
       </div>
-      ${o.usdAmount > 0 ? `<div class="oc-field"><strong>報價金額:</strong> US$${Number(o.usdAmount).toFixed(0)}</div>` : ''}
+      ${(o.usdAmount > 0 || o.shippingFee > 0 || o.totalUSD > 0) ? `<div class="oc-field" style="display:flex;gap:12px;flex-wrap:wrap;">
+        ${o.usdAmount > 0 ? `<span><strong>產品:</strong> US$${Number(o.usdAmount).toFixed(0)}</span>` : ''}
+        ${o.shippingFee > 0 ? `<span><strong>運費:</strong> US$${Number(o.shippingFee).toFixed(0)}</span>` : ''}
+        ${(o.totalUSD > 0) ? `<span style="font-weight:700;color:#0f9d58;"><strong>合計:</strong> US$${Number(o.totalUSD).toFixed(0)}</span>` : ''}
+      </div>` : ''}
       ${o.rmbAmount > 0 ? `<div class="oc-field"><strong>工廠金額:</strong> ¥${o.rmbAmount}</div>` : ''}
       <div class="oc-field" style="display:flex;gap:12px;flex-wrap:wrap;">
         ${o.supplier ? `<span><strong>廠商:</strong> ${escapeHtml(o.supplier)}</span>` : ''}
@@ -1855,8 +2058,20 @@ function renderOrders() {
       ${o.trackingNumber ? `<div class="oc-field"><strong>物流單號:</strong> <span class="oc-tracking" onclick="copyText('${escapeAttr(o.trackingNumber)}')">${escapeHtml(o.trackingNumber)} 📋</span></div>` : ''}
       ${o.address ? `<div class="oc-field"><strong>地址:</strong> ${escapeHtml(o.address)}</div>` : ''}
       ${o.notes ? `<div class="oc-notes">${escapeHtml(o.notes)}</div>` : ''}
-      <div style="margin-top:8px;display:flex;gap:4px;">
+      <!-- 訂單追蹤快速操作 -->
+      <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:8px;padding:6px 8px;background:#f8f9fa;border-radius:8px;border:1px solid #e8e8e8;">
+        <span style="font-size:10px;color:#888;white-space:nowrap;">📦 追蹤日:</span>
+        <input type="date" value="${ofu}" style="font-size:11px;padding:2px 5px;border:1px solid #ddd;border-radius:5px;" onchange="setOrderFollowUp(${o.id},this.value)">
+        <button class="btn btn-sm" style="background:#e3f2fd;color:#1565c0;padding:2px 7px;font-size:11px;" onclick="quickOrderFollowUp(${o.id},3)">+3天</button>
+        <button class="btn btn-sm" style="background:#e3f2fd;color:#1565c0;padding:2px 7px;font-size:11px;" onclick="quickOrderFollowUp(${o.id},7)">+7天</button>
+        <button class="btn btn-sm" style="background:#e3f2fd;color:#1565c0;padding:2px 7px;font-size:11px;" onclick="quickOrderFollowUp(${o.id},14)">+14天</button>
+        ${ofu ? `<button class="btn btn-sm" style="background:#e8f5e9;color:#2e7d32;padding:2px 7px;font-size:11px;" onclick="markOrderFollowedUp(${o.id})">✅ 已追蹤</button>` : ''}
+        ${ofuText ? `<span style="font-size:11px;font-weight:600;color:${ofuDiff < 0 ? '#e53935' : ofuDiff === 0 ? '#f57c00' : '#555'};">${ofuText}</span>` : ''}
+      </div>
+
+      <div style="margin-top:6px;display:flex;gap:4px;">
         <button class="btn btn-sm" style="background:#7b1fa2;color:white;" onclick="showEditOrder(${o.id})">編輯</button>
+        <button class="btn btn-sm" style="background:#0f9d58;color:white;" onclick="copyOrder(${o.id})">複製訂單</button>
         ${currentRole==='admin'?`<button class="btn btn-danger btn-sm" onclick="deleteOrder(${o.id})">刪除</button>`:''}
       </div>
     </div>`;
@@ -1880,6 +2095,27 @@ function deleteOrder(orderId) {
   state.orders = state.orders.filter(o => o.id !== orderId);
   saveOrders(); renderOrders(); renderDashboard();
   showToast('訂單已刪除');
+}
+
+function copyOrder(orderId) {
+  const o = state.orders.find(x => x.id === orderId);
+  if (!o) return;
+  const newId = Date.now();
+  const newOrder = {
+    ...o,
+    id: newId,
+    stage: 'pending',
+    orderConfirmed: false,
+    paymentDone: false,
+    shipped: false,
+    trackingNumber: '',
+    factoryNote: '',
+    createdAt: new Date().toISOString().slice(0, 10),
+    updatedAt: new Date().toISOString().slice(0, 10),
+  };
+  state.orders.unshift(newOrder);
+  saveOrders(); renderOrders(); renderDashboard();
+  showEditOrder(newId);
 }
 
 function buildSelectHTML(id, options, selected, placeholder) {
@@ -1910,6 +2146,12 @@ function getSelectVal(id) {
   return v === '__other' ? '' : v;
 }
 
+function calcOrderTotal() {
+  const usd = parseFloat(el('ord-usd')?.value) || 0;
+  const ship = parseFloat(el('ord-shipping')?.value) || 0;
+  if (el('ord-total')) el('ord-total').value = (usd + ship).toFixed(2);
+}
+
 function showNewOrderModal() {
   el('order-modal-title').textContent = '新增訂單';
   const custOptions = state.customers.map(c => `<option value="${c.id}">${escapeHtml(c.name)} (${escapeHtml(c.country||'')})</option>`).join('');
@@ -1918,7 +2160,12 @@ function showNewOrderModal() {
     <div class="row"><div class="field"><label>客戶名稱</label><input id="ord-name" placeholder="客戶名稱"></div><div class="field"><label>國家</label><input id="ord-country" placeholder="國家"></div></div>
     <div class="row"><div class="field" style="flex:2"><label>產品描述</label><input id="ord-product" placeholder="e.g. 200個髮夾"></div></div>
     <div class="row">
-      <div class="field"><label>RMB 金額</label><input id="ord-rmb" type="number" placeholder="0"></div>
+      <div class="field"><label>產品金額 (USD)</label><input id="ord-usd" type="number" placeholder="0" oninput="calcOrderTotal()"></div>
+      <div class="field"><label>運費 (USD)</label><input id="ord-shipping" type="number" placeholder="0" oninput="calcOrderTotal()"></div>
+      <div class="field"><label>合計 (USD)</label><input id="ord-total" type="number" readonly style="background:#f0fff4;font-weight:600;" value="0"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>工廠金額 (RMB)</label><input id="ord-rmb" type="number" placeholder="0"></div>
       <div class="field"><label>訂單階段</label><select id="ord-stage">${ORDER_STAGES.map(s=>`<option value="${s.value}">${s.label}</option>`).join('')}</select></div>
     </div>
     <div class="row">
@@ -1946,6 +2193,9 @@ function showNewOrderModal() {
       product: el('ord-product').value,
       country: el('ord-country').value,
       orderConfirmed: false, paymentDone: false, shipped: false,
+      usdAmount: parseFloat(el('ord-usd').value) || 0,
+      shippingFee: parseFloat(el('ord-shipping').value) || 0,
+      totalUSD: parseFloat(el('ord-total').value) || 0,
       rmbAmount: parseFloat(el('ord-rmb').value) || 0,
       supplier: getSelectVal('ord-supplier'),
       forwarder: getSelectVal('ord-forwarder'),
@@ -1972,7 +2222,12 @@ function showEditOrder(orderId) {
     <div class="row"><div class="field"><label>客戶名稱</label><input id="ord-name" value="${escapeAttr(o.customerName)}"></div><div class="field"><label>國家</label><input id="ord-country" value="${escapeAttr(o.country||'')}"></div></div>
     <div class="row"><div class="field" style="flex:2"><label>產品描述</label><input id="ord-product" value="${escapeAttr(o.product)}"></div></div>
     <div class="row">
-      <div class="field"><label>RMB 金額</label><input id="ord-rmb" type="number" value="${o.rmbAmount||0}"></div>
+      <div class="field"><label>產品金額 (USD)</label><input id="ord-usd" type="number" value="${o.usdAmount||0}" oninput="calcOrderTotal()"></div>
+      <div class="field"><label>運費 (USD)</label><input id="ord-shipping" type="number" value="${o.shippingFee||0}" oninput="calcOrderTotal()"></div>
+      <div class="field"><label>合計 (USD)</label><input id="ord-total" type="number" readonly style="background:#f0fff4;font-weight:600;" value="${o.totalUSD || ((o.usdAmount||0)+(o.shippingFee||0))}"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>工廠金額 (RMB)</label><input id="ord-rmb" type="number" value="${o.rmbAmount||0}"></div>
       <div class="field"><label>訂單階段</label><select id="ord-stage">${ORDER_STAGES.map(s=>`<option value="${s.value}" ${o.stage===s.value?'selected':''}>${s.label}</option>`).join('')}</select></div>
     </div>
     <div class="row">
@@ -1990,6 +2245,9 @@ function showEditOrder(orderId) {
     o.customerName = el('ord-name').value.trim() || o.customerName;
     o.country = el('ord-country').value;
     o.product = el('ord-product').value;
+    o.usdAmount = parseFloat(el('ord-usd').value) || 0;
+    o.shippingFee = parseFloat(el('ord-shipping').value) || 0;
+    o.totalUSD = parseFloat(el('ord-total').value) || 0;
     o.rmbAmount = parseFloat(el('ord-rmb').value) || 0;
     o.stage = el('ord-stage').value;
     o.supplier = getSelectVal('ord-supplier');
@@ -2120,24 +2378,95 @@ function renderStats() {
   const customerCount = new Set(allQuotes.map(q => q.customer)).size;
 
   el('stats-summary').innerHTML = `
-    <div class="dash-stat money"><div class="ds-value">$${totalAmount > 0 ? Math.round(totalAmount).toLocaleString() : '0'}</div><div class="ds-label">報價總金額</div></div>
+    <div class="dash-stat money"><div class="ds-value">$${totalAmount > 0 ? Math.round(totalAmount).toLocaleString() : '0'}</div><div class="ds-label">報價總金額 (USD)</div></div>
     <div class="dash-stat active"><div class="ds-value">${totalCount}</div><div class="ds-label">總報價次數</div></div>
-    <div class="dash-stat today"><div class="ds-value">$${avgAmount > 0 ? Math.round(avgAmount).toLocaleString() : '0'}</div><div class="ds-label">平均每筆金額</div></div>
+    <div class="dash-stat today"><div class="ds-value">$${avgAmount > 0 ? Math.round(avgAmount).toLocaleString() : '0'}</div><div class="ds-label">平均每筆報價</div></div>
     <div class="dash-stat"><div class="ds-value">${customerCount}</div><div class="ds-label">報價客戶數</div></div>
   `;
 
-  // Draw bar chart - Revenue
-  drawBarChart('chart-revenue', keys, amounts, '#4285f4', 'US$');
-  // Draw bar chart - Count
-  drawBarChart('chart-count', keys, counts, '#0f9d58', '筆');
+  // ── 訂單統計 ──
+  const allOrders = state.orders.map(o => ({
+    date: o.createdAt || '',
+    usdAmount: o.totalUSD || o.usdAmount || 0,   // totalUSD takes priority
+    rmbAmount: o.rmbAmount || 0,
+    stage: o.stage,
+    customerName: o.customerName,
+    country: o.country || 'Unknown',
+    product: o.product || ''
+  }));
 
-  // Country pie chart
+  const orderGrouped = {};
+  allOrders.forEach(o => {
+    const key = getPeriodKey(o.date);
+    if (!key) return;
+    if (!orderGrouped[key]) orderGrouped[key] = { amount: 0, count: 0 };
+    orderGrouped[key].amount += o.usdAmount;
+    orderGrouped[key].count += 1;
+  });
+  const oKeys = Object.keys(orderGrouped).sort();
+  const oAmounts = oKeys.map(k => orderGrouped[k].amount);
+  const oCounts = oKeys.map(k => orderGrouped[k].count);
+
+  const orderTotalUSD = allOrders.reduce((s, o) => s + o.usdAmount, 0);
+  const orderTotalCount = allOrders.length;
+  const orderActive = allOrders.filter(o => o.stage !== 'done').length;
+  const orderDone = allOrders.filter(o => o.stage === 'done').length;
+
+  el('order-stats-summary').innerHTML = `
+    <div class="dash-stat money"><div class="ds-value">$${orderTotalUSD > 0 ? Math.round(orderTotalUSD).toLocaleString() : '0'}</div><div class="ds-label">訂單總金額 (USD)</div></div>
+    <div class="dash-stat active"><div class="ds-value">${orderTotalCount}</div><div class="ds-label">訂單總數</div></div>
+    <div class="dash-stat today"><div class="ds-value">${orderActive}</div><div class="ds-label">進行中訂單</div></div>
+    <div class="dash-stat"><div class="ds-value">${orderDone}</div><div class="ds-label">已完成訂單</div></div>
+  `;
+
+  // ── 轉換率分析 ──
+  const quotedCustomers = new Set(allQuotes.map(q => q.customer)).size;
+  const orderedCustomers = new Set(state.orders.map(o => o.customerId).filter(Boolean)).size;
+  const convRateCustomer = quotedCustomers > 0 ? Math.round(orderedCustomers / quotedCustomers * 100) : 0;
+  const convRateQuote = totalCount > 0 ? Math.round(orderTotalCount / totalCount * 100) : 0;
+  const avgOrderVal = orderTotalCount > 0 ? Math.round(orderTotalUSD / orderTotalCount) : 0;
+
+  el('conversion-summary').innerHTML = `
+    <div class="dash-stat" style="border-top:3px solid #f57c00;">
+      <div class="ds-value" style="color:#f57c00;">${convRateCustomer}%</div>
+      <div class="ds-label">客戶轉換率<br><span style="font-size:10px;color:#aaa;">${orderedCustomers} / ${quotedCustomers} 位客戶</span></div>
+    </div>
+    <div class="dash-stat" style="border-top:3px solid #e53935;">
+      <div class="ds-value" style="color:#e53935;">${convRateQuote}%</div>
+      <div class="ds-label">報價轉單率<br><span style="font-size:10px;color:#aaa;">${orderTotalCount} / ${totalCount} 筆</span></div>
+    </div>
+    <div class="dash-stat" style="border-top:3px solid #0f9d58;">
+      <div class="ds-value" style="color:#0f9d58;">$${avgOrderVal.toLocaleString()}</div>
+      <div class="ds-label">平均訂單金額<br><span style="font-size:10px;color:#aaa;">USD</span></div>
+    </div>
+    <div class="dash-stat" style="border-top:3px solid #7b1fa2;">
+      <div class="ds-value" style="color:#7b1fa2;">${orderDone}</div>
+      <div class="ds-label">已完成訂單<br><span style="font-size:10px;color:#aaa;">stage = done</span></div>
+    </div>
+  `;
+
+  // Dual bar: quotes vs orders per period
+  const allPeriodKeys = [...new Set([...keys, ...oKeys])].sort();
+  const quotesByPeriod = allPeriodKeys.map(k => grouped[k]?.count || 0);
+  const ordersByPeriod = allPeriodKeys.map(k => orderGrouped[k]?.count || 0);
+  drawDualBarChart('chart-conversion', allPeriodKeys, quotesByPeriod, ordersByPeriod, '#4285f4', '#0f9d58', '報價', '訂單');
+
+  // Draw bar chart - Quote Revenue
+  drawBarChart('chart-revenue', keys, amounts, '#4285f4', 'US$');
+  // Draw bar chart - Quote Count
+  drawBarChart('chart-count', keys, counts, '#4285f4', '筆');
+  // Draw bar chart - Order Revenue
+  drawBarChart('chart-order-revenue', oKeys, oAmounts, '#0f9d58', 'US$');
+  // Draw bar chart - Order Count
+  drawBarChart('chart-order-count', oKeys, oCounts, '#0f9d58', '筆');
+
+  // Quote: Country pie chart
   const countryMap = {};
   allQuotes.forEach(q => { countryMap[q.country] = (countryMap[q.country] || 0) + q.amount; });
   const countryEntries = Object.entries(countryMap).sort((a,b) => b[1] - a[1]).slice(0, 8);
   drawPieChart('chart-country', countryEntries.map(e => e[0]), countryEntries.map(e => e[1]));
 
-  // Product pie chart
+  // Quote: Product pie chart
   const prodMap = {};
   allQuotes.forEach(q => {
     (q.products || []).forEach(p => {
@@ -2147,6 +2476,26 @@ function renderStats() {
   });
   const prodEntries = Object.entries(prodMap).sort((a,b) => b[1] - a[1]).slice(0, 8);
   drawPieChart('chart-product', prodEntries.map(e => e[0]), prodEntries.map(e => e[1]));
+
+  // Order: Country pie chart (by count)
+  const orderCountryMap = {};
+  allOrders.forEach(o => {
+    const c = o.country || 'Unknown';
+    orderCountryMap[c] = (orderCountryMap[c] || 0) + 1;
+  });
+  const orderCountryEntries = Object.entries(orderCountryMap).sort((a,b) => b[1] - a[1]).slice(0, 8);
+  drawPieChart('chart-order-country', orderCountryEntries.map(e => e[0]), orderCountryEntries.map(e => e[1]));
+
+  // Order: Product pie chart — parse first product name from text field
+  const orderProdMap = {};
+  allOrders.forEach(o => {
+    const firstLine = (o.product || '').split('\n')[0].trim();
+    // Strip trailing " x{qty} ..." to get product name
+    const name = firstLine.replace(/\s+x\d+.*$/, '').trim() || 'Unknown';
+    orderProdMap[name] = (orderProdMap[name] || 0) + 1;
+  });
+  const orderProdEntries = Object.entries(orderProdMap).sort((a,b) => b[1] - a[1]).slice(0, 8);
+  drawPieChart('chart-order-product', orderProdEntries.map(e => e[0]), orderProdEntries.map(e => e[1]));
 }
 
 function drawBarChart(canvasId, labels, values, color, unit) {
@@ -2213,6 +2562,71 @@ function drawBarChart(canvasId, labels, values, color, unit) {
     ctx.rotate(-0.4);
     ctx.fillText(label, 0, 0);
     ctx.restore();
+  });
+}
+
+function drawDualBarChart(canvasId, labels, vals1, vals2, color1, color2, label1, label2) {
+  const canvas = el(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.parentElement.clientWidth || 600;
+  const h = 280;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  if (labels.length === 0) {
+    ctx.fillStyle = '#999'; ctx.font = '14px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('尚無資料', w/2, h/2); return;
+  }
+
+  const pad = { top: 30, right: 20, bottom: 55, left: 40 };
+  const chartW = w - pad.left - pad.right;
+  const chartH = h - pad.top - pad.bottom;
+  const max = Math.max(...vals1, ...vals2, 1) * 1.2;
+  const groupW = chartW / labels.length;
+  const barW = Math.min(18, groupW * 0.38);
+  const gap = 3;
+
+  // Legend
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillStyle = color1; ctx.fillRect(pad.left, 8, 12, 10);
+  ctx.fillStyle = '#333'; ctx.textAlign = 'left'; ctx.fillText(label1, pad.left + 16, 18);
+  ctx.fillStyle = color2; ctx.fillRect(pad.left + 60, 8, 12, 10);
+  ctx.fillStyle = '#333'; ctx.fillText(label2, pad.left + 76, 18);
+
+  // Grid
+  ctx.strokeStyle = '#e8e8e8'; ctx.lineWidth = 0.5;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + chartH - (chartH * i / 4);
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(w - pad.right, y); ctx.stroke();
+    ctx.fillStyle = '#999'; ctx.font = '10px sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText(Math.round(max * i / 4), pad.left - 4, y + 3);
+  }
+
+  labels.forEach((label, i) => {
+    const cx = pad.left + i * groupW + groupW / 2;
+    // Bar 1
+    const bh1 = (vals1[i] / max) * chartH;
+    ctx.fillStyle = color1;
+    ctx.fillRect(cx - barW - gap/2, pad.top + chartH - bh1, barW, bh1);
+    if (vals1[i] > 0) {
+      ctx.fillStyle = color1; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(vals1[i], cx - barW/2 - gap/2, pad.top + chartH - bh1 - 3);
+    }
+    // Bar 2
+    const bh2 = (vals2[i] / max) * chartH;
+    ctx.fillStyle = color2;
+    ctx.fillRect(cx + gap/2, pad.top + chartH - bh2, barW, bh2);
+    if (vals2[i] > 0) {
+      ctx.fillStyle = color2; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(vals2[i], cx + barW/2 + gap/2, pad.top + chartH - bh2 - 3);
+    }
+    // X label
+    ctx.fillStyle = '#666'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(label.length > 7 ? label.slice(-5) : label, cx, pad.top + chartH + 14);
   });
 }
 
