@@ -23,6 +23,30 @@
 .login-error { color:#ea4335; font-size:12px; text-align:center; margin-top:10px; min-height:18px; }
 .login-hint { text-align:center; margin-top:14px; font-size:11px; color:#bbb; }
 
+/* ===== CUSTOMER CARD SECTIONS ===== */
+.cc-section { margin-top:6px; border:1px solid #e8e8e8; border-radius:8px; overflow:hidden; }
+.cc-section summary { cursor:pointer; padding:6px 10px; font-size:12px; font-weight:600; display:flex; justify-content:space-between; align-items:center; user-select:none; }
+.cc-section summary:hover { background:#f5f5f5; }
+.cc-section-track summary { background:#f3f8ff; color:#1565c0; border-bottom:1px solid #e3f2fd; }
+.cc-section-quotes summary { background:#fff8f0; color:#e65100; border-bottom:1px solid #ffe0b2; }
+.cc-section-supplier summary { background:#f3fff6; color:#2e7d32; border-bottom:1px solid #c8e6c9; }
+.cc-section-body { padding:8px 10px; }
+.note-item { display:flex; align-items:flex-start; gap:6px; padding:5px 0; border-bottom:1px solid #f0f0f0; }
+.note-item:last-child { border-bottom:none; }
+.note-date { font-size:10px; color:#999; white-space:nowrap; padding-top:1px; min-width:52px; }
+.note-text { font-size:12px; color:#444; flex:1; line-height:1.5; }
+.note-del { background:none; border:none; cursor:pointer; color:#ccc; font-size:13px; padding:0 2px; line-height:1; flex-shrink:0; }
+.note-del:hover { color:#e53935; }
+.quote-version { border:1px solid #ffe0b2; border-radius:6px; padding:8px; margin-bottom:6px; background:#fffaf5; }
+.quote-version-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+.quote-v-badge { background:#e65100; color:white; border-radius:4px; padding:1px 7px; font-size:11px; font-weight:700; }
+.quote-v-date { font-size:11px; color:#999; }
+.quote-v-table { width:100%; font-size:11px; border-collapse:collapse; }
+.quote-v-table th { background:#fff3e0; padding:3px 6px; text-align:left; font-weight:600; color:#555; }
+.quote-v-table td { padding:3px 6px; border-bottom:1px solid #f5e6d0; }
+.quote-v-total { margin-top:5px; font-size:12px; font-weight:700; color:#e65100; text-align:right; }
+.supplier-note-area { width:100%; min-height:70px; font-size:12px; padding:6px 8px; border:1px solid #c8e6c9; border-radius:6px; resize:vertical; font-family:inherit; line-height:1.5; }
+
 /* ===== USER BADGE ===== */
 .user-badge { display:flex; align-items:center; gap:10px; }
 .user-badge .role-tag { background:rgba(255,255,255,0.18); padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; }
@@ -1702,14 +1726,61 @@ function renderCRM() {
 
       ${latestNote ? `<div class="cc-status-note">${escapeHtml(latestNote.text)}</div>` : ''}
 
-      <details style="margin-top:4px;">
-        <summary style="cursor:pointer;font-size:12px;color:#1a1a2e;font-weight:500;">展開追蹤記錄 & 備註 (${(c.notes||[]).length})</summary>
-        <div style="margin-top:8px;">
-          <div class="timeline">${timelineHTML || '<div style="color:#999;font-size:12px;padding:8px;">尚無追蹤紀錄</div>'}</div>
-          <div class="note-input">
+      <!-- 區塊1: 追蹤紀錄 -->
+      <details class="cc-section cc-section-track" ${(c.notes||[]).length > 0 ? 'open' : ''}>
+        <summary>💬 追蹤紀錄 <span style="font-weight:400;font-size:11px;">(${(c.notes||[]).length} 筆)</span></summary>
+        <div class="cc-section-body">
+          <div>
+            ${(c.notes||[]).length === 0 ? '<div style="color:#999;font-size:12px;padding:4px 0;">尚無追蹤紀錄</div>' :
+              (c.notes||[]).map((n, i) => `
+              <div class="note-item">
+                <span class="note-date">${n.date}</span>
+                <span class="note-text">${escapeHtml(n.text)}</span>
+                <button class="note-del" onclick="deleteNote(${c.id},${i})" title="刪除">✕</button>
+              </div>`).join('')}
+          </div>
+          <div class="note-input" style="margin-top:6px;">
             <input id="note-input-${c.id}" placeholder="新增追蹤備註..." onkeydown="if(event.key==='Enter')addNote(${c.id})">
             <button class="btn btn-primary btn-sm" onclick="addNote(${c.id})">新增</button>
           </div>
+        </div>
+      </details>
+
+      <!-- 區塊2: 報價版本 -->
+      <details class="cc-section cc-section-quotes">
+        <summary>📋 報價紀錄 <span style="font-weight:400;font-size:11px;">(${(c.quotes||[]).length} 版)</span></summary>
+        <div class="cc-section-body">
+          ${(c.quotes||[]).length === 0 ? '<div style="color:#999;font-size:12px;">尚無報價記錄</div>' :
+            (c.quotes||[]).map((q, qi) => {
+              const vNum = (c.quotes||[]).length - qi;
+              const prodRows = (q.products||[]).map(p =>
+                `<tr><td>${escapeHtml(p.name)}</td><td style="text-align:right;">${p.qty}</td><td style="text-align:right;">$${Number(p.unitPrice||0).toFixed(2)}</td><td style="text-align:right;font-weight:600;">$${(p.qty*(p.unitPrice||0)).toFixed(0)}</td></tr>`
+              ).join('');
+              return `<div class="quote-version">
+                <div class="quote-version-header">
+                  <span class="quote-v-badge">V${vNum}</span>
+                  <span class="quote-v-date">${q.date}</span>
+                </div>
+                <table class="quote-v-table">
+                  <thead><tr><th>產品</th><th style="text-align:right;">數量</th><th style="text-align:right;">單價</th><th style="text-align:right;">小計</th></tr></thead>
+                  <tbody>${prodRows}</tbody>
+                </table>
+                <div class="quote-v-total">
+                  ${q.totalLogo > 0 ? `<span style="font-weight:400;font-size:11px;color:#888;margin-right:8px;">Logo: $${q.totalLogo.toFixed(0)}</span>` : ''}
+                  ${q.shipping > 0 ? `<span style="font-weight:400;font-size:11px;color:#888;margin-right:8px;">運費: $${q.shipping.toFixed(0)}</span>` : ''}
+                  合計: US$${Number(q.totalAmount||0).toFixed(0)}
+                </div>
+              </div>`;
+            }).join('')}
+        </div>
+      </details>
+
+      <!-- 區塊3: 廠商備註 -->
+      <details class="cc-section cc-section-supplier">
+        <summary>🏭 廠商 & 後台備註 <span style="font-weight:400;font-size:11px;color:#888;">${c.supplierNote ? '(有內容)' : ''}</span></summary>
+        <div class="cc-section-body">
+          <textarea class="supplier-note-area" placeholder="廠商報價、物流運費、成本資訊等後台紀錄..." onchange="saveSupplierNote(${c.id},this.value)">${escapeHtml(c.supplierNote||'')}</textarea>
+          <div style="font-size:10px;color:#999;margin-top:3px;text-align:right;">最後更新：${c.supplierNoteUpdated||'—'}</div>
         </div>
       </details>
 
@@ -1909,6 +1980,21 @@ function addNote(custId) {
     saveCRM(); renderCRM();
     showToast('備註已新增');
   }
+}
+
+function deleteNote(custId, index) {
+  const c = state.customers.find(x => x.id === custId);
+  if (!c) return;
+  c.notes.splice(index, 1);
+  saveCRM(); renderCRM();
+}
+
+function saveSupplierNote(custId, value) {
+  const c = state.customers.find(x => x.id === custId);
+  if (!c) return;
+  c.supplierNote = value;
+  c.supplierNoteUpdated = new Date().toISOString().slice(0, 10);
+  saveCRM();
 }
 
 function loadCustomerToQuote(custId) {
