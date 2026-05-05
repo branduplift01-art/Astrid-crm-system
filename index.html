@@ -889,7 +889,6 @@ const DEFAULT_TEMPLATES = [
 
 const CRM_STATUSES = [
   {value:'inquiry', label:'詢價中', class:'status-inquiry'},
-  {value:'sample', label:'樣品階段', class:'status-sample'},
   {value:'quoted', label:'已報價', class:'status-quoted'},
   {value:'following', label:'跟進中', class:'status-following'},
   {value:'pending_payment', label:'待付款', class:'status-pending_payment'},
@@ -900,6 +899,7 @@ const CRM_STATUSES = [
 ];
 
 const ORDER_STAGES = [
+  {value:'sample', label:'樣品階段'},
   {value:'pending', label:'待成單'},
   {value:'paid', label:'待付款'},
   {value:'producing', label:'生產中'},
@@ -908,6 +908,8 @@ const ORDER_STAGES = [
   {value:'review', label:'邀請評價'},
   {value:'done', label:'完成'},
 ];
+
+const ACCOUNTS = ['主帳','IRIS帳','TINA帳','ElenaLin帳'];
 
 const DEFAULT_TAGS = ['復購客戶','高潛力新客','重要長期客戶','電商客戶','小客戶','待催付款','中盤商','潛在續購客戶','穩定小單客戶','服裝連鎖品牌','準訂單客戶','潛在新產品客戶'];
 
@@ -1680,14 +1682,17 @@ function renderCRM() {
           <span class="cc-name">${escapeHtml(c.name)}</span>
           <span class="cc-country">${escapeHtml(c.country || '')}</span>
         </div>
-        <div style="display:flex;align-items:center;gap:6px;">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
           <select style="padding:3px 6px;border:1px solid #e0e0e0;border-radius:6px;font-size:11px;" onchange="updateStatus(${c.id}, this.value)">${statusOptions}</select>
           <span class="status-tag ${statusInfo.class}">${statusInfo.label}</span>
+          <button onclick="toggleNoTracking(${c.id})" style="background:${c.noTracking?'#546e7a':'#eceff1'};color:${c.noTracking?'white':'#546e7a'};border:none;border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer;font-weight:600;" title="${c.noTracking?'點擊解除封存':'封存此客戶'}">📦${c.noTracking?'已封存':'封存'}</button>
         </div>
       </div>
 
       <div class="cc-meta">
-        ${c.account ? `<span style="background:#e8eaf6;color:#3949ab;padding:1px 8px;border-radius:10px;font-size:10px;font-weight:600;">${escapeHtml(c.account)}</span>` : ''}
+        <select style="background:#e8eaf6;color:#3949ab;border:1px solid #c5cae9;border-radius:10px;font-size:10px;font-weight:600;padding:1px 6px;" onchange="updateAccount(${c.id},this.value)">
+          ${ACCOUNTS.map(a=>`<option value="${a}" ${(c.account||'主帳')===a?'selected':''}>${a}</option>`).join('')}
+        </select>
         ${tagsHTML}
         ${c.productType ? `<span style="color:#555;">| ${escapeHtml(c.productType)}</span>` : ''}
         <span class="cc-followup ${fuClass}">${fuText}</span>
@@ -1716,13 +1721,11 @@ function renderCRM() {
         <button class="btn btn-sm" style="background:#e3f2fd;color:#1565c0;padding:2px 7px;font-size:11px;" onclick="quickFollowUp(${c.id},7)">+7天</button>
         <button class="btn btn-sm" style="background:#e3f2fd;color:#1565c0;padding:2px 7px;font-size:11px;" onclick="quickFollowUp(${c.id},14)">+14天</button>
         <button class="btn btn-sm" style="background:#e8f5e9;color:#2e7d32;padding:2px 7px;font-size:11px;" onclick="markFollowedUp(${c.id})">✅ 已追蹤</button>
-        <button class="btn btn-sm" style="background:#eceff1;color:#546e7a;padding:2px 7px;font-size:11px;" onclick="toggleNoTracking(${c.id})" title="封存此客戶">📦 封存</button>
       </div>
 
       <div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap;">
         ${!c.noTracking ? `<button class="btn btn-copy btn-sm" onclick="loadCustomerToQuote(${c.id})">重新報價</button>` : ''}
         ${!c.noTracking && lastQuote ? `<button class="btn btn-sm" style="background:#666;color:white;" onclick="copyText(\`${escapeAttr(lastQuote.quoteText || '')}\`)">複製最近報價</button>` : ''}
-        ${c.noTracking ? `<button class="btn btn-sm" style="background:#546e7a;color:white;" onclick="toggleNoTracking(${c.id})">📦 解除封存</button>` : ''}
         <button class="btn btn-sm" style="background:#7b1fa2;color:white;" onclick="showEditCustomer(${c.id})">編輯</button>
         ${currentRole==='admin'?`<button class="btn btn-danger btn-sm" onclick="deleteCustomer(${c.id})">刪除</button>`:''}
       </div>
@@ -1798,7 +1801,15 @@ function toggleNoTracking(custId) {
   c.noTracking = !c.noTracking;
   if (c.noTracking) c.followUpDate = '';
   saveCRM(); renderCRM();
-  showToast(c.noTracking ? '🔕 已設為不追蹤' : '🔔 已恢復追蹤');
+  showToast(c.noTracking ? '📦 已封存' : '🔔 已解除封存');
+}
+
+function updateAccount(custId, account) {
+  const c = state.customers.find(x => x.id === custId);
+  if (!c) return;
+  c.account = account;
+  saveCRM(); renderCRM();
+  showToast(`帳號已切換為 ${account}`);
 }
 
 // Order follow-up date setter
