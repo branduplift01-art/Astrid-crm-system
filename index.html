@@ -1765,10 +1765,13 @@ function renderCRM() {
                   <thead><tr><th>產品</th><th style="text-align:right;">數量</th><th style="text-align:right;">單價</th><th style="text-align:right;">小計</th></tr></thead>
                   <tbody>${prodRows}</tbody>
                 </table>
-                <div class="quote-v-total">
-                  ${q.totalLogo > 0 ? `<span style="font-weight:400;font-size:11px;color:#888;margin-right:8px;">Logo: $${q.totalLogo.toFixed(0)}</span>` : ''}
-                  ${q.shipping > 0 ? `<span style="font-weight:400;font-size:11px;color:#888;margin-right:8px;">運費: $${q.shipping.toFixed(0)}</span>` : ''}
-                  合計: US$${Number(q.totalAmount||0).toFixed(0)}
+                <div class="quote-v-total" style="display:flex;justify-content:space-between;align-items:center;">
+                  <button onclick="convertQuoteToOrder(${c.id},${q.id})" style="background:#1a1a2e;color:white;border:none;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-weight:600;">🛒 轉訂單</button>
+                  <span>
+                    ${q.totalLogo > 0 ? `<span style="font-weight:400;font-size:11px;color:#888;margin-right:8px;">Logo: $${q.totalLogo.toFixed(0)}</span>` : ''}
+                    ${q.shipping > 0 ? `<span style="font-weight:400;font-size:11px;color:#888;margin-right:8px;">運費: $${q.shipping.toFixed(0)}</span>` : ''}
+                    合計: US$${Number(q.totalAmount||0).toFixed(0)}
+                  </span>
                 </div>
               </div>`;
             }).join('')}
@@ -2247,6 +2250,85 @@ function calcOrderTotal() {
   const usd = parseFloat(el('ord-usd')?.value) || 0;
   const ship = parseFloat(el('ord-shipping')?.value) || 0;
   if (el('ord-total')) el('ord-total').value = (usd + ship).toFixed(2);
+}
+
+function convertQuoteToOrder(custId, quoteId) {
+  const c = state.customers.find(x => x.id === custId);
+  if (!c) return;
+  const q = (c.quotes || []).find(x => x.id === quoteId);
+  if (!q) return;
+
+  // Build product description
+  const productDesc = (q.products || []).map(p =>
+    `${p.name} x${p.qty}${p.unitPrice ? ` (US$${Number(p.unitPrice).toFixed(2)}/pc)` : ''}`
+  ).join('\n');
+
+  const usdAmount = (q.products || []).reduce((s, p) => s + (p.unitPrice || 0) * (p.qty || 0), 0) + (q.totalLogo || 0);
+  const shipping = q.shipping || 0;
+  const total = q.totalAmount || 0;
+
+  el('order-modal-title').textContent = `📋 報價轉訂單：${c.name}`;
+  el('order-modal-body').innerHTML = `
+    <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:6px 10px;font-size:12px;margin-bottom:10px;">
+      ⚡ 已從 <strong>${c.name}</strong> 的報價自動帶入資料，請確認後儲存
+    </div>
+    <div class="row"><div class="field"><label>客戶名稱</label><input id="ord-name" value="${escapeAttr(c.name)}"></div><div class="field"><label>國家</label><input id="ord-country" value="${escapeAttr(c.country||'')}"></div></div>
+    <div class="row"><div class="field" style="flex:2"><label>產品描述</label><textarea id="ord-product" rows="3" style="resize:vertical;">${escapeHtml(productDesc)}</textarea></div></div>
+    <div class="row">
+      <div class="field"><label>產品金額 (USD)</label><input id="ord-usd" type="number" value="${usdAmount.toFixed(2)}" oninput="calcOrderTotal()"></div>
+      <div class="field"><label>運費 (USD)</label><input id="ord-shipping" type="number" value="${shipping.toFixed(2)}" oninput="calcOrderTotal()"></div>
+      <div class="field"><label>合計 (USD)</label><input id="ord-total" type="number" readonly style="background:#f0fff4;font-weight:600;" value="${total.toFixed(2)}"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>工廠金額 (RMB)</label><input id="ord-rmb" type="number" value="0"></div>
+      <div class="field"><label>訂單階段</label><select id="ord-stage">${ORDER_STAGES.map(s=>`<option value="${s.value}" ${s.value==='pending'?'selected':''}>${s.label}</option>`).join('')}</select></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>主要廠商</label>${buildSelectHTML('ord-supplier', DEFAULT_SUPPLIERS, '', '-- 選擇廠商 --')}</div>
+      <div class="field"><label>代運公司</label>${buildSelectHTML('ord-forwarder', DEFAULT_FORWARDERS, '', '-- 選擇代運 --')}</div>
+      <div class="field"><label>貨運方式</label>${buildSelectHTML('ord-shiptype', DEFAULT_SHIP_TYPES, '', '-- 選擇方式 --')}</div>
+    </div>
+    <div class="row"><div class="field" style="flex:2"><label>地址</label><input id="ord-address" value="${escapeAttr(c.address||'')}"></div></div>
+    <div class="row"><div class="field" style="flex:2"><label>備註</label><textarea id="ord-notes" rows="2" placeholder="備註"></textarea></div></div>
+  `;
+  initSelectOther('ord-supplier'); initSelectOther('ord-forwarder'); initSelectOther('ord-shiptype');
+
+  el('order-modal-save').onclick = () => {
+    const name = el('ord-name').value.trim();
+    if (!name) { showToast('請輸入客戶名稱'); return; }
+    const newOrder = {
+      id: Date.now(),
+      customerId: c.id,
+      customerName: name,
+      country: el('ord-country').value,
+      product: el('ord-product').value,
+      usdAmount: parseFloat(el('ord-usd').value) || 0,
+      shippingFee: parseFloat(el('ord-shipping').value) || 0,
+      totalUSD: parseFloat(el('ord-total').value) || 0,
+      rmbAmount: parseFloat(el('ord-rmb').value) || 0,
+      orderConfirmed: true, paymentDone: false, shipped: false,
+      supplier: getSelectVal('ord-supplier'),
+      forwarder: getSelectVal('ord-forwarder'),
+      shipType: getSelectVal('ord-shiptype'),
+      factoryNote: '',
+      trackingNumber: '',
+      address: el('ord-address').value,
+      notes: el('ord-notes').value,
+      stage: el('ord-stage').value,
+      fromQuoteId: quoteId,
+      createdAt: new Date().toISOString().slice(0, 10),
+      updatedAt: new Date().toISOString().slice(0, 10),
+    };
+    state.orders.unshift(newOrder);
+    // Update CRM status to ordered
+    c.status = 'ordered';
+    c.notes = c.notes || [];
+    c.notes.unshift({ date: new Date().toISOString().slice(0,10), text: `✅ 報價轉訂單（US$${total.toFixed(0)}）`, type: 'status' });
+    saveOrders(); saveCRM(); renderOrders(); renderCRM(); renderDashboard();
+    closeModal('order-modal');
+    showToast('✅ 訂單已建立，CRM 狀態已更新為「已下單」');
+  };
+  el('order-modal').classList.add('show');
 }
 
 function showNewOrderModal() {
