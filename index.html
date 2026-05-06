@@ -1393,6 +1393,12 @@ function generateQuote() {
   total += shipping;
   lines.push(`Total price: US ${total.toFixed(1)}`);
 
+  const suppliers = getQuoteSuppliers();
+  if (suppliers.length > 0) {
+    lines.push('');
+    lines.push(`[廠商: ${suppliers.join(' / ')}]`);
+  }
+
   const text = lines.join('\n');
   el('quote-output').innerHTML = `<button class="btn btn-copy copy-btn" onclick="copyQuote()">複製報價</button>\n${escapeHtml(text)}`;
   el('quote-output-card').style.display = 'block';
@@ -1650,7 +1656,8 @@ function saveQuoteAndCRM() {
   const quoteRecord = {
     id: Date.now(),
     date: new Date().toISOString().slice(0, 10),
-    products, totalLogo, shipping, totalAmount, quoteText
+    products, totalLogo, shipping, totalAmount, quoteText,
+    suppliers: getQuoteSuppliers()
   };
 
   const account = el('customerAccount')?.value || '主帳';
@@ -2293,7 +2300,7 @@ function renderOrders() {
       </div>` : ''}
       ${o.rmbAmount > 0 ? `<div class="oc-field"><strong>工廠金額:</strong> ¥${o.rmbAmount}</div>` : ''}
       <div class="oc-field" style="display:flex;gap:12px;flex-wrap:wrap;">
-        ${o.supplier ? `<span><strong>廠商:</strong> ${escapeHtml(o.supplier)}</span>` : ''}
+        ${(o.suppliers && o.suppliers.length > 0) ? o.suppliers.map((s,i) => `<span><strong>廠商${o.suppliers.length>1?i+1:''}:</strong> ${escapeHtml(s)}</span>`).join('') : o.supplier ? `<span><strong>廠商:</strong> ${escapeHtml(o.supplier)}</span>` : ''}
         ${o.forwarder ? `<span><strong>代運:</strong> ${escapeHtml(o.forwarder)}</span>` : ''}
         ${o.shipType ? `<span><strong>貨運:</strong> ${escapeHtml(o.shipType)}</span>` : ''}
       </div>
@@ -2427,18 +2434,43 @@ function convertQuoteToOrder(custId, quoteId) {
       <div class="field"><label>訂單階段</label><select id="ord-stage">${ORDER_STAGES.map(s=>`<option value="${s.value}" ${s.value==='pending'?'selected':''}>${s.label}</option>`).join('')}</select></div>
     </div>
     <div class="row">
-      <div class="field"><label>主要廠商</label>${buildSelectHTML('ord-supplier', DEFAULT_SUPPLIERS, '', '-- 選擇廠商 --')}</div>
       <div class="field"><label>代運公司</label>${buildSelectHTML('ord-forwarder', DEFAULT_FORWARDERS, '', '-- 選擇代運 --')}</div>
       <div class="field"><label>貨運方式</label>${buildSelectHTML('ord-shiptype', DEFAULT_SHIP_TYPES, '', '-- 選擇方式 --')}</div>
     </div>
+    ${q.suppliers && q.suppliers.length > 0 ? `
+    <div style="background:#f3fff6;border:1px solid #c8e6c9;border-radius:6px;padding:8px 10px;margin-bottom:8px;">
+      <div style="font-size:11px;font-weight:600;color:#2e7d32;margin-bottom:6px;">🏭 廠商（從報價帶入）</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;" id="ord-suppliers-list">
+        ${q.suppliers.map((s,i) => `
+          <div style="display:flex;align-items:center;gap:4px;">
+            <span style="font-size:11px;color:#555;">廠商${i+1}:</span>
+            ${buildSupplierSelect('ord-sup-'+i, s)}
+          </div>`).join('')}
+      </div>
+    </div>` : `
+    <div class="row">
+      <div class="field"><label>主要廠商</label>${buildSelectHTML('ord-supplier', DEFAULT_SUPPLIERS, '', '-- 選擇廠商 --')}</div>
+    </div>`}
     <div class="row"><div class="field" style="flex:2"><label>地址</label><input id="ord-address" value="${escapeAttr(c.address||'')}"></div></div>
     <div class="row"><div class="field" style="flex:2"><label>備註</label><textarea id="ord-notes" rows="2" placeholder="備註"></textarea></div></div>
   `;
-  initSelectOther('ord-supplier'); initSelectOther('ord-forwarder'); initSelectOther('ord-shiptype');
+  initSelectOther('ord-forwarder'); initSelectOther('ord-shiptype');
+  if (q.suppliers && q.suppliers.length > 0) {
+    q.suppliers.forEach((s, i) => { const sel = el('ord-sup-'+i); if (sel) sel.onchange = () => onQuoteSupplierChange('ord-sup-'+i); });
+  } else {
+    initSelectOther('ord-supplier');
+  }
 
   el('order-modal-save').onclick = () => {
     const name = el('ord-name').value.trim();
     if (!name) { showToast('請輸入客戶名稱'); return; }
+    // Collect suppliers
+    let orderSuppliers = [];
+    if (q.suppliers && q.suppliers.length > 0) {
+      q.suppliers.forEach((s, i) => { const v = el('ord-sup-'+i)?.value; if (v && v !== '__manual__') orderSuppliers.push(v); });
+    } else {
+      const sv = getSelectVal('ord-supplier'); if (sv) orderSuppliers.push(sv);
+    }
     const newOrder = {
       id: Date.now(),
       customerId: c.id,
@@ -2450,7 +2482,8 @@ function convertQuoteToOrder(custId, quoteId) {
       totalUSD: parseFloat(el('ord-total').value) || 0,
       rmbAmount: parseFloat(el('ord-rmb').value) || 0,
       orderConfirmed: true, paymentDone: false, shipped: false,
-      supplier: getSelectVal('ord-supplier'),
+      suppliers: orderSuppliers,
+      supplier: orderSuppliers[0] || '',
       forwarder: getSelectVal('ord-forwarder'),
       shipType: getSelectVal('ord-shiptype'),
       factoryNote: '',
