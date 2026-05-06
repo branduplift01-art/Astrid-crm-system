@@ -363,6 +363,10 @@ body { font-family: 'Segoe UI', -apple-system, sans-serif; background: #f0f2f5; 
           </select>
         </div>
       </div>
+      <div class="row" style="align-items:flex-end;flex-wrap:wrap;gap:8px;">
+        <label style="color:#2e7d32;font-weight:600;font-size:12px;width:100%;margin-bottom:0;">🏭 廠商選擇（可多家）</label>
+        <div id="quote-suppliers-row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;"></div>
+      </div>
     </div>
 
     <div class="card">
@@ -938,6 +942,56 @@ const ACCOUNTS = ['主帳','IRIS帳','TINA帳','ElenaLin帳'];
 const DEFAULT_TAGS = ['復購客戶','高潛力新客','重要長期客戶','電商客戶','小客戶','待催付款','中盤商','潛在續購客戶','穩定小單客戶','服裝連鎖品牌','準訂單客戶','潛在新產品客戶'];
 
 const DEFAULT_SUPPLIERS = ['廣西 金億達','廣東 良田','廣東 錦秀','浙江 嘉星','浙江 超防电子科技','廣西 耀翔','浙江武義縣 宇丰电子科技','溫州 福然包装','浙江 曙光','浙江 恒耀改名涌乐电子','廣東 銘鑫','廣東 名友','浙江 振華塑料','廣東 金滨金属制品','廣東 优磁管理技术','浙江 数标金属工艺品厂','廣東 丰和实业','浙江 锦晴贸易','福建 馨嘉家具','廣東 华唐艺品五金工艺厂','河北霸州市 雨萱格塑料制品','廣東 珠疆'];
+// Pinned suppliers always shown at top (after manual entry)
+const PINNED_SUPPLIERS = ['廣西 金億達','廣西 耀翔','浙江 嘉星','浙江 曙光','廣東 良田'];
+// Full supplier list (non-pinned portion, sorted by region)
+const BASE_SUPPLIERS_EXTRA = [
+  '浙江 恒耀改-涌乐电子','浙江 振華塑料','浙江溫州 福然包装','浙江 超防电子科技',
+  '浙江 宇丰电子科技','浙江 数标金属工艺品厂','浙江 锦晴贸易',
+  '廣東 錦秀','廣東 名友','廣東 珠疆','廣東 金滨金属制品','廣東 铭顺铭鑫',
+  '廣東 华唐艺品五金工艺厂','廣東 丰和实业','廣東 优磁管理技术','廣東 力弘五金',
+  '福建 馨嘉家具','河北 雨萱格塑料制品','台灣 大世紀','台灣 躍逞','台灣 利晏','台灣 亞之榮',
+];
+
+// State for custom suppliers added by user
+if (!window.customSuppliers) window.customSuppliers = [];
+
+function getSupplierList() {
+  const extras = [...BASE_SUPPLIERS_EXTRA, ...window.customSuppliers];
+  // Sort non-pinned by region prefix, then name
+  const sorted = extras.sort((a, b) => {
+    const ra = a.split(' ')[0] || a;
+    const rb = b.split(' ')[0] || b;
+    if (ra !== rb) return ra.localeCompare(rb, 'zh');
+    return a.localeCompare(b, 'zh');
+  });
+  // De-duplicate
+  const seen = new Set(PINNED_SUPPLIERS);
+  return [...PINNED_SUPPLIERS, ...sorted.filter(s => { if (seen.has(s)) return false; seen.add(s); return true; })];
+}
+
+function addCustomSupplier(name) {
+  name = name.trim();
+  if (!name) return false;
+  const all = getSupplierList();
+  if (all.includes(name)) return false;
+  window.customSuppliers.push(name);
+  return true;
+}
+
+function buildSupplierSelect(id, selected = '', placeholder = '地區(省)+廠商名') {
+  const list = getSupplierList();
+  let html = `<select id="${id}" style="border:1px solid #ddd;border-radius:6px;padding:4px 8px;font-size:12px;min-width:150px;" onchange="onQuoteSupplierChange('${id}')">`;
+  html += `<option value="" style="color:#999;">${placeholder}</option>`;
+  html += `<option value="__manual__">✏️ 手動填寫廠商</option>`;
+  html += `<option disabled>──────────</option>`;
+  list.forEach(s => {
+    html += `<option value="${escapeAttr(s)}" ${selected===s?'selected':''}>${escapeHtml(s)}</option>`;
+  });
+  html += `</select>`;
+  return html;
+}
+
 const DEFAULT_FORWARDERS = ['Gary','Lucky','阿里物流','IRIS'];
 const DEFAULT_SHIP_TYPES = ['DDP by air','DDP by sea','DDP by rail','DDP by XX','DAP by air','Express','Postal shipping'];
 
@@ -1000,6 +1054,7 @@ async function init() {
   renderTiers();
   renderTemplates();
   addProduct();
+  initQuoteSuppliersRow();
   renderCRM();
   renderOrders();
   renderTools();
@@ -1351,6 +1406,89 @@ function copyQuote() {
   navigator.clipboard.writeText(text).then(() => showToast('已複製到剪貼簿！'));
 }
 
+// ── 報價廠商列 ──────────────────────────────────────
+let quoteSupplierCount = 0;
+
+function initQuoteSuppliersRow() {
+  quoteSupplierCount = 0;
+  const row = el('quote-suppliers-row');
+  if (!row) return;
+  row.innerHTML = '';
+  addQuoteSupplierSlot();
+}
+
+function addQuoteSupplierSlot(preselected = '') {
+  const row = el('quote-suppliers-row');
+  if (!row) return;
+  const sid = `qs-${++quoteSupplierCount}`;
+  const wrap = document.createElement('div');
+  wrap.id = `qs-wrap-${quoteSupplierCount}`;
+  wrap.style.cssText = 'display:flex;align-items:center;gap:4px;';
+  wrap.innerHTML = buildSupplierSelect(sid, preselected);
+  row.appendChild(wrap);
+}
+
+function onQuoteSupplierChange(selectId) {
+  const sel = el(selectId);
+  if (!sel) return;
+  if (sel.value === '__manual__') {
+    const name = prompt('請輸入廠商名稱（格式：地區(省) 廠商名）：');
+    if (name && name.trim()) {
+      addCustomSupplier(name.trim());
+      // Rebuild this select with new value
+      const newHTML = buildSupplierSelect(selectId, name.trim());
+      const tmp = document.createElement('div');
+      tmp.innerHTML = newHTML;
+      sel.parentNode.replaceChild(tmp.firstChild, sel);
+      // Re-attach change listener on new select
+      el(selectId).onchange = () => onQuoteSupplierChange(selectId);
+    } else {
+      sel.value = '';
+      return;
+    }
+  }
+  // If this is the last slot and has a value, add another slot
+  const row = el('quote-suppliers-row');
+  const allSelects = row ? row.querySelectorAll('select') : [];
+  const lastSel = allSelects[allSelects.length - 1];
+  if (lastSel && lastSel.id === selectId && el(selectId)?.value) {
+    addQuoteSupplierSlot();
+  }
+}
+
+function getQuoteSuppliers() {
+  const row = el('quote-suppliers-row');
+  if (!row) return [];
+  return [...row.querySelectorAll('select')]
+    .map(s => s.value)
+    .filter(v => v && v !== '__manual__');
+}
+
+function renderCardSuppliers(c) {
+  const suppliers = c.suppliers || [];
+  if (suppliers.length === 0) return '';
+  return `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:4px 0;">
+    <span style="font-size:10px;color:#888;white-space:nowrap;">🏭</span>
+    ${suppliers.map((s, i) => `
+      <select data-cid="${c.id}" data-idx="${i}" style="background:#f3fff6;color:#2e7d32;border:1px solid #c8e6c9;border-radius:8px;font-size:10px;font-weight:600;padding:1px 5px;" onchange="updateCardSupplier(${c.id},${i},this.value)">
+        ${getSupplierList().map(opt => `<option value="${escapeAttr(opt)}" ${s===opt?'selected':''}>${escapeHtml(opt)}</option>`).join('')}
+      </select>`).join('')}
+  </div>`;
+}
+
+function updateCardSupplier(custId, idx, value) {
+  const c = state.customers.find(x => x.id === custId);
+  if (!c || !c.suppliers) return;
+  if (value === '__manual__') {
+    const name = prompt('請輸入廠商名稱：');
+    if (name && name.trim()) { addCustomSupplier(name.trim()); c.suppliers[idx] = name.trim(); }
+  } else {
+    c.suppliers[idx] = value;
+  }
+  saveCRM(); renderCRM();
+}
+// ─────────────────────────────────────────────────────
+
 function resetQuoteForm() {
   if (!confirm('確定要清空所有報價資料，建立新報價嗎？')) return;
   el('customerName').value = '';
@@ -1375,6 +1513,7 @@ function resetQuoteForm() {
   addProduct();
   renderLogos();
   recalc();
+  initQuoteSuppliersRow();
   window.scrollTo({ top: 0, behavior: 'smooth' });
   showToast('已清空，可以開始新報價！');
 }
@@ -1515,6 +1654,7 @@ function saveQuoteAndCRM() {
   };
 
   const account = el('customerAccount')?.value || '主帳';
+  const quoteSuppliers = getQuoteSuppliers();
 
   let customer = state.customers.find(c => c.name.toLowerCase() === customerName.toLowerCase());
   if (!customer) {
@@ -1525,6 +1665,7 @@ function saveQuoteAndCRM() {
       status: 'quoted',
       importance: 2, tags: [], followUpDate: '', productType: '', estimatedAmount: 0,
       quotes: [], notes: [],
+      suppliers: quoteSuppliers,
       createdAt: new Date().toISOString().slice(0, 10)
     };
     state.customers.unshift(customer);
@@ -1535,6 +1676,7 @@ function saveQuoteAndCRM() {
     if (phone) customer.phone = phone;
     if (email) customer.email = email;
     customer.account = account;
+    if (quoteSuppliers.length > 0) customer.suppliers = quoteSuppliers;
     if (customer.status === 'inquiry') customer.status = 'quoted';
   }
 
@@ -1717,6 +1859,7 @@ function renderCRM() {
         <select style="background:#e8eaf6;color:#3949ab;border:1px solid #c5cae9;border-radius:10px;font-size:10px;font-weight:600;padding:1px 6px;" onchange="updateAccount(${c.id},this.value)">
           ${ACCOUNTS.map(a=>`<option value="${a}" ${(c.account||'主帳')===a?'selected':''}>${a}</option>`).join('')}
         </select>
+        ${renderCardSuppliers(c)}
         ${tagsHTML}
         ${c.productType ? `<span style="color:#555;">| ${escapeHtml(c.productType)}</span>` : ''}
         <span class="cc-followup ${fuClass}">${fuText}</span>
