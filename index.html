@@ -927,14 +927,13 @@ const CRM_STATUSES = [
 ];
 
 const ORDER_STAGES = [
-  {value:'sample', label:'樣品階段'},
-  {value:'pending', label:'待成單'},
-  {value:'paid', label:'待付款'},
+  {value:'sample',    label:'樣品階段'},
+  {value:'pending',   label:'待成單'},
+  {value:'paid',      label:'已承擔'},
   {value:'producing', label:'生產中'},
-  {value:'ready', label:'待出貨'},
-  {value:'shipped', label:'已出貨'},
-  {value:'review', label:'邀請評價'},
-  {value:'done', label:'完成'},
+  {value:'ready',     label:'待付款給廠商'},
+  {value:'shipped',   label:'已出貨'},
+  {value:'done',      label:'完成'},
 ];
 
 const ACCOUNTS = ['主帳','IRIS帳','TINA帳','ElenaLin帳'];
@@ -1163,6 +1162,8 @@ async function loadAllData() {
       needSave = true;
     }
   });
+  // Migrate 'review' stage → 'done'
+  state.orders.forEach(o => { if (o.stage === 'review') { o.stage = 'done'; needSave = true; } });
   if (needSave) dbSave('orders', state.orders);
 
   // Tools
@@ -1816,7 +1817,7 @@ function renderCRM() {
     const statusInfo = CRM_STATUSES.find(s => s.value === c.status) || CRM_STATUSES[0];
     const totalQuoted = c.quotes ? c.quotes.reduce((sum, q) => sum + q.totalAmount, 0) : 0;
     const lastQuote = c.quotes && c.quotes.length > 0 ? c.quotes[0] : null;
-    const stars = '★'.repeat(c.importance || 2) + '☆'.repeat(4 - (c.importance || 2));
+    const stars = '★'.repeat(c.importance || 3) + '☆'.repeat(5 - (c.importance || 3));
 
     // Follow-up date — friendly text
     const fuInfo = followUpInfo(c.followUpDate, today);
@@ -1883,9 +1884,10 @@ function renderCRM() {
           <div>
             ${(c.notes||[]).length === 0 ? '<div style="color:#999;font-size:12px;padding:4px 0;">尚無追蹤紀錄</div>' :
               (c.notes||[]).map((n, i) => `
-              <div class="note-item">
+              <div class="note-item" id="note-${c.id}-${i}">
                 <span class="note-date">${n.date}</span>
-                <span class="note-text">${escapeHtml(n.text)}</span>
+                <span class="note-text" id="note-text-${c.id}-${i}">${escapeHtml(n.text)}</span>
+                <button class="note-del" style="color:#aaa;font-size:11px;" onclick="editNote(${c.id},${i})" title="編輯">✏️</button>
                 <button class="note-del" onclick="deleteNote(${c.id},${i})" title="刪除">✕</button>
               </div>`).join('')}
           </div>
@@ -1983,7 +1985,7 @@ function followUpInfo(dateStr, today) {
 function cycleImportance(custId) {
   const c = state.customers.find(x => x.id === custId);
   if (c) {
-    c.importance = (c.importance || 2) % 4 + 1;
+    c.importance = (c.importance || 3) % 5 + 1;
     saveCRM(); renderCRM();
   }
 }
@@ -2138,7 +2140,18 @@ function addNote(custId) {
 function deleteNote(custId, index) {
   const c = state.customers.find(x => x.id === custId);
   if (!c) return;
+  if (!confirm('刪除這筆備註？')) return;
   c.notes.splice(index, 1);
+  saveCRM(); renderCRM();
+}
+
+function editNote(custId, index) {
+  const c = state.customers.find(x => x.id === custId);
+  if (!c || !c.notes[index]) return;
+  const newText = prompt('編輯備註：', c.notes[index].text);
+  if (newText === null) return;
+  c.notes[index].text = newText.trim();
+  c.notes[index].editedAt = new Date().toISOString().slice(0,10);
   saveCRM(); renderCRM();
 }
 
@@ -2206,7 +2219,7 @@ function showEditCustomer(custId) {
     <div class="row">
       <div class="field"><label>追單日</label><input id="edit-followup" type="date" value="${c.followUpDate||''}"></div>
       <div class="field"><label>預估金額 (USD)</label><input id="edit-estAmount" type="number" value="${c.estimatedAmount||0}"></div>
-      <div class="field"><label>重要性 (1-4)</label><input id="edit-importance" type="number" min="1" max="4" value="${c.importance||2}"></div>
+      <div class="field"><label>重要性 (1-5★)</label><input id="edit-importance" type="number" min="1" max="5" value="${c.importance||3}"></div>
     </div>
     <div style="margin-top:8px;">
       <label style="font-size:12px;color:#888;font-weight:500;">客戶標籤</label>
@@ -2227,7 +2240,7 @@ function showEditCustomer(custId) {
     c.address = el('edit-address').value;
     c.followUpDate = el('edit-followup').value;
     c.estimatedAmount = parseFloat(el('edit-estAmount').value) || 0;
-    c.importance = Math.min(4, Math.max(1, parseInt(el('edit-importance').value) || 2));
+    c.importance = Math.min(5, Math.max(1, parseInt(el('edit-importance').value) || 3));
     c.tags = [...document.querySelectorAll('.edit-tag-cb:checked')].map(cb => cb.value);
     saveCRM(); renderCRM(); closeModal('edit-modal');
     showToast('客戶資料已更新');
@@ -2307,6 +2320,11 @@ function renderOrders() {
       ${o.factoryNote ? `<div class="oc-field"><strong>工廠進度:</strong> ${escapeHtml(o.factoryNote)}</div>` : ''}
       ${o.trackingNumber ? `<div class="oc-field"><strong>物流單號:</strong> <span class="oc-tracking" onclick="copyText('${escapeAttr(o.trackingNumber)}')">${escapeHtml(o.trackingNumber)} 📋</span></div>` : ''}
       ${o.address ? `<div class="oc-field"><strong>地址:</strong> ${escapeHtml(o.address)}</div>` : ''}
+      ${(o.orderDate||o.shipDate||o.etaDate) ? `<div class="oc-field" style="display:flex;gap:12px;flex-wrap:wrap;background:#f8f9fa;padding:4px 8px;border-radius:6px;">
+        ${o.orderDate ? `<span>📅 <strong>成交:</strong> ${o.orderDate}</span>` : ''}
+        ${o.shipDate  ? `<span>🚚 <strong>出貨:</strong> ${o.shipDate}</span>`  : ''}
+        ${o.etaDate   ? `<span>🏁 <strong>到貨:</strong> ${o.etaDate}</span>`   : ''}
+      </div>` : ''}
       ${o.notes ? `<div class="oc-notes">${escapeHtml(o.notes)}</div>` : ''}
       <!-- 訂單追蹤快速操作 -->
       <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:8px;padding:6px 8px;background:#f8f9fa;border-radius:8px;border:1px solid #e8e8e8;">
@@ -2451,8 +2469,13 @@ function convertQuoteToOrder(custId, quoteId) {
     <div class="row">
       <div class="field"><label>主要廠商</label>${buildSelectHTML('ord-supplier', DEFAULT_SUPPLIERS, '', '-- 選擇廠商 --')}</div>
     </div>`}
+    <div class="row">
+      <div class="field"><label>成交日期</label><input id="ord-order-date" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+      <div class="field"><label>預計出貨日</label><input id="ord-ship-date" type="date"></div>
+      <div class="field"><label>預計抵達日</label><input id="ord-eta-date" type="date"></div>
+    </div>
     <div class="row"><div class="field" style="flex:2"><label>地址</label><input id="ord-address" value="${escapeAttr(c.address||'')}"></div></div>
-    <div class="row"><div class="field" style="flex:2"><label>備註</label><textarea id="ord-notes" rows="2" placeholder="備註"></textarea></div></div>
+    <div class="row"><div class="field" style="flex:2"><label>備註（報價追蹤記錄自動帶入）</label><textarea id="ord-notes" rows="3">${escapeHtml((c.notes||[]).filter(n=>n.type==='quote'||n.type==='note').slice(0,3).map(n=>`[${n.date}] ${n.text}`).join('\n'))}</textarea></div></div>
   `;
   initSelectOther('ord-forwarder'); initSelectOther('ord-shiptype');
   if (q.suppliers && q.suppliers.length > 0) {
@@ -2492,6 +2515,9 @@ function convertQuoteToOrder(custId, quoteId) {
       notes: el('ord-notes').value,
       stage: el('ord-stage').value,
       fromQuoteId: quoteId,
+      orderDate: el('ord-order-date')?.value || new Date().toISOString().slice(0,10),
+      shipDate: el('ord-ship-date')?.value || '',
+      etaDate: el('ord-eta-date')?.value || '',
       createdAt: new Date().toISOString().slice(0, 10),
       updatedAt: new Date().toISOString().slice(0, 10),
     };
@@ -2590,6 +2616,11 @@ function showEditOrder(orderId) {
       <div class="field"><label>代運公司</label>${buildSelectHTML('ord-forwarder', DEFAULT_FORWARDERS, o.forwarder||'', '-- 選擇代運 --')}</div>
       <div class="field"><label>貨運方式</label>${buildSelectHTML('ord-shiptype', DEFAULT_SHIP_TYPES, o.shipType||'', '-- 選擇方式 --')}</div>
     </div>
+    <div class="row">
+      <div class="field"><label>成交日期</label><input id="ord-order-date" type="date" value="${o.orderDate||''}"></div>
+      <div class="field"><label>預計出貨日</label><input id="ord-ship-date" type="date" value="${o.shipDate||''}"></div>
+      <div class="field"><label>預計抵達日</label><input id="ord-eta-date" type="date" value="${o.etaDate||''}"></div>
+    </div>
     <div class="row"><div class="field" style="flex:2"><label>工廠生產進度</label><input id="ord-factory" value="${escapeAttr(o.factoryNote||'')}"></div></div>
     <div class="row"><div class="field"><label>物流單號</label><input id="ord-tracking" value="${escapeAttr(o.trackingNumber||'')}"></div></div>
     <div class="row"><div class="field" style="flex:2"><label>地址</label><input id="ord-address" value="${escapeAttr(o.address||'')}"></div></div>
@@ -2612,6 +2643,9 @@ function showEditOrder(orderId) {
     o.trackingNumber = el('ord-tracking').value;
     o.address = el('ord-address').value;
     o.notes = el('ord-notes').value;
+    o.orderDate = el('ord-order-date')?.value || o.orderDate || '';
+    o.shipDate  = el('ord-ship-date')?.value  || '';
+    o.etaDate   = el('ord-eta-date')?.value   || '';
     o.updatedAt = new Date().toISOString().slice(0,10);
     saveOrders(); renderOrders(); renderDashboard(); closeModal('order-modal');
     showToast('訂單已更新');
