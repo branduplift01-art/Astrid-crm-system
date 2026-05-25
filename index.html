@@ -490,8 +490,11 @@ body { font-family: 'Segoe UI', -apple-system, sans-serif; background: #f0f2f5; 
           </select>
         </div>
 
+        <!-- 本週 / 本月 快速總覽 -->
+        <div id="period-quick-stats" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;padding:10px 12px;background:#f8f9ff;border-radius:10px;border:1px solid #e3f2fd;"></div>
+
         <div style="font-size:12px;font-weight:600;color:#4285f4;margin-bottom:6px;padding-bottom:4px;border-bottom:2px solid #e3f2fd;">
-          💬 報價統計
+          💬 報價統計（全期）
         </div>
         <div class="dashboard-stats" style="margin-bottom:20px;" id="stats-summary"></div>
 
@@ -2732,6 +2735,47 @@ function renderStats() {
     });
   });
 
+  // ── 本週 / 本月 快速總覽 ──
+  (function() {
+    const now = new Date();
+    const y = now.getFullYear(), m = now.getMonth();
+    // Week: Mon–Sun
+    const dow = (now.getDay() + 6) % 7; // 0=Mon
+    const weekStart = new Date(now); weekStart.setDate(now.getDate() - dow); weekStart.setHours(0,0,0,0);
+    const monthStart = new Date(y, m, 1);
+
+    let wCount=0, wAmt=0, mCount=0, mAmt=0;
+    allQuotes.forEach(q => {
+      const d = new Date(q.date);
+      if (isNaN(d)) return;
+      if (d >= weekStart) { wCount++; wAmt += q.amount; }
+      if (d >= monthStart) { mCount++; mAmt += q.amount; }
+    });
+
+    let woCount=0, woAmt=0, moCount=0, moAmt=0;
+    state.orders.forEach(o => {
+      const d = new Date(o.createdAt || '');
+      if (isNaN(d)) return;
+      if (d >= weekStart) { woCount++; woAmt += (o.totalUSD || o.usdAmount || 0); }
+      if (d >= monthStart) { moCount++; moAmt += (o.totalUSD || o.usdAmount || 0); }
+    });
+
+    const fmt = n => n >= 1000 ? '$' + Math.round(n/1000) + 'k' : '$' + Math.round(n);
+    const box = (label, qc, qa, oc, oa, color) => `
+      <div style="flex:1;min-width:160px;background:#fff;border-radius:8px;padding:10px 14px;border-left:4px solid ${color};box-shadow:0 1px 4px rgba(0,0,0,.07);">
+        <div style="font-size:11px;font-weight:700;color:${color};margin-bottom:6px;">${label}</div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <div><span style="font-size:18px;font-weight:700;color:#333;">${qc}</span><span style="font-size:10px;color:#888;margin-left:3px;">筆報價</span><br><span style="font-size:12px;color:#4285f4;">${fmt(qa)}</span></div>
+          <div><span style="font-size:18px;font-weight:700;color:#333;">${oc}</span><span style="font-size:10px;color:#888;margin-left:3px;">筆訂單</span><br><span style="font-size:12px;color:#0f9d58;">${fmt(oa)}</span></div>
+        </div>
+      </div>`;
+
+    const pqs = el('period-quick-stats');
+    if (pqs) pqs.innerHTML =
+      box('📅 本週', wCount, wAmt, woCount, woAmt, '#4285f4') +
+      box('🗓️ 本月', mCount, mAmt, moCount, moAmt, '#0f9d58');
+  })();
+
   // Group by period
   function getPeriodKey(dateStr) {
     const d = new Date(dateStr);
@@ -2849,9 +2893,9 @@ function renderStats() {
   // Draw bar chart - Order Count
   drawBarChart('chart-order-count', oKeys, oCounts, '#0f9d58', '筆');
 
-  // Quote: Country pie chart
+  // Quote: Country pie chart — ranked by QUOTE COUNT (not amount)
   const countryMap = {};
-  allQuotes.forEach(q => { countryMap[q.country] = (countryMap[q.country] || 0) + q.amount; });
+  allQuotes.forEach(q => { countryMap[q.country] = (countryMap[q.country] || 0) + 1; });
   const countryEntries = Object.entries(countryMap).sort((a,b) => b[1] - a[1]).slice(0, 8);
   drawPieChart('chart-country', countryEntries.map(e => e[0]), countryEntries.map(e => e[1]));
 
