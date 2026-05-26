@@ -2043,7 +2043,7 @@ function updateAccount(custId, account) {
 
 // Order follow-up date setter
 function setOrderFollowUp(orderId, dateVal) {
-  const o = state.orders.find(x => x.id === orderId);
+  const o = state.orders.find(x => String(x.id) === String(orderId));
   if (!o) return;
   o.followUpDate = dateVal;
   o.updatedAt = new Date().toISOString().slice(0, 10);
@@ -2051,7 +2051,7 @@ function setOrderFollowUp(orderId, dateVal) {
 }
 
 function quickOrderFollowUp(orderId, days) {
-  const o = state.orders.find(x => x.id === orderId);
+  const o = state.orders.find(x => String(x.id) === String(orderId));
   if (!o) return;
   const d = new Date(); d.setDate(d.getDate() + days);
   o.followUpDate = d.toISOString().slice(0, 10);
@@ -2061,7 +2061,7 @@ function quickOrderFollowUp(orderId, days) {
 }
 
 function markOrderFollowedUp(orderId) {
-  const o = state.orders.find(x => x.id === orderId);
+  const o = state.orders.find(x => String(x.id) === String(orderId));
   if (!o) return;
   o.followUpDate = '';
   o.updatedAt = new Date().toISOString().slice(0, 10);
@@ -2352,24 +2352,25 @@ function renderOrders() {
 function setOrderFilter(f) { state.orderFilter = f; renderOrders(); }
 
 function updateOrderStage(orderId, newStage) {
-  const o = state.orders.find(x => x.id === orderId);
+  const o = state.orders.find(x => String(x.id) === String(orderId));
   if (o) { o.stage = newStage; o.updatedAt = new Date().toISOString().slice(0,10); saveOrders(); renderOrders(); renderDashboard(); }
 }
 
 function toggleOrderField(orderId, field, val) {
-  const o = state.orders.find(x => x.id === orderId);
+  const o = state.orders.find(x => String(x.id) === String(orderId));
   if (o) { o[field] = val; o.updatedAt = new Date().toISOString().slice(0,10); saveOrders(); renderOrders(); }
 }
 
 function deleteOrder(orderId) {
   if (!confirm('確定要刪除此訂單嗎？')) return;
-  state.orders = state.orders.filter(o => o.id !== orderId);
+  // Use loose comparison (== not ===) to handle id stored as string vs number
+  state.orders = state.orders.filter(o => String(o.id) !== String(orderId));
   saveOrders(); renderOrders(); renderDashboard();
   showToast('訂單已刪除');
 }
 
 function copyOrder(orderId) {
-  const o = state.orders.find(x => x.id === orderId);
+  const o = state.orders.find(x => String(x.id) === String(orderId));
   if (!o) return;
   const newId = Date.now();
   const newOrder = {
@@ -2599,7 +2600,7 @@ function showNewOrderModal() {
 }
 
 function showEditOrder(orderId) {
-  const o = state.orders.find(x => x.id === orderId);
+  const o = state.orders.find(x => String(x.id) === String(orderId));
   if (!o) return;
   el('order-modal-title').textContent = `編輯訂單: ${o.customerName}`;
   el('order-modal-body').innerHTML = `
