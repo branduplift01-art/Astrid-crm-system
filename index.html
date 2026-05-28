@@ -458,6 +458,7 @@ body { font-family: 'Segoe UI', -apple-system, sans-serif; background: #f0f2f5; 
           <select id="crm-sort" onchange="renderCRM()" style="padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;">
             <option value="followup">按追單日排序</option>
             <option value="importance">按重要性排序</option>
+            <option value="quote_amount">按報價金額排序</option>
             <option value="name">按名稱排序</option>
             <option value="newest">按建立時間排序</option>
           </select>
@@ -1801,6 +1802,17 @@ function renderCRM() {
     filtered.sort((a, b) => (b.importance || 0) - (a.importance || 0));
   } else if (sortBy === 'name') {
     filtered.sort((a, b) => a.name.localeCompare(b.name));
+  } else if (sortBy === 'quote_amount') {
+    // Sort by latest quote totalAmount (descending); customers with no quotes go to bottom
+    filtered.sort((a, b) => {
+      const getLatestAmt = c => {
+        const quotes = c.quotes || [];
+        if (quotes.length === 0) return -1;
+        // Use the last quote's totalAmount (most recent)
+        return quotes[quotes.length - 1].totalAmount || 0;
+      };
+      return getLatestAmt(b) - getLatestAmt(a);
+    });
   } else if (sortBy === 'newest') {
     filtered.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
   }
