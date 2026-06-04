@@ -209,6 +209,7 @@ body { font-family: 'Segoe UI', -apple-system, sans-serif; background: #f0f2f5; 
 .status-shipped { background: #e8f5e9; color: #2e7d32; }
 .status-completed { background: #e8eaf6; color: #283593; }
 .status-ordered { background: #1a1a2e; color: #ffffff; }
+.status-archived { background: #eceff1; color: #546e7a; }
 
 .timeline { margin-top: 8px; padding-left: 16px; border-left: 2px solid #e0e0e0; }
 .timeline-item { margin-bottom: 8px; padding-left: 12px; position: relative; }
@@ -966,6 +967,7 @@ const CRM_STATUSES = [
   {value:'in_production', label:'生產中', class:'status-in_production'},
   {value:'shipped', label:'已出貨', class:'status-shipped'},
   {value:'completed', label:'完成/復購', class:'status-completed'},
+  {value:'archived', label:'封存', class:'status-archived'},
 ];
 
 const ORDER_STAGES = [
@@ -2133,6 +2135,15 @@ function updateStatus(custId, newStatus) {
   const oldLabel = CRM_STATUSES.find(s=>s.value===c.status)?.label || c.status;
   const newLabel = CRM_STATUSES.find(s=>s.value===newStatus)?.label || newStatus;
   c.status = newStatus;
+
+  // 選封存 → 自動 noTracking；從封存切回其他 → 自動解除
+  if (newStatus === 'archived') {
+    c.noTracking = true;
+    c.followUpDate = '';
+  } else if (c.noTracking) {
+    c.noTracking = false;
+  }
+
   c.notes.unshift({
     date: new Date().toISOString().slice(0, 10),
     text: `狀態變更: ${oldLabel} → ${newLabel}`,
@@ -2833,6 +2844,7 @@ function renderStats() {
   const period = el('stats-period')?.value || 'monthly';
   const allQuotes = [];
   state.customers.forEach(c => {
+    if (c.noTracking || c.status === 'archived') return; // 封存客戶不計入統計
     (c.quotes || []).forEach(q => {
       allQuotes.push({ date: q.date, amount: q.totalAmount || 0, customer: c.name, country: c.country || 'Unknown', products: q.products || [] });
     });
@@ -2847,6 +2859,7 @@ function renderStats() {
     const weekStart = new Date(now); weekStart.setDate(now.getDate() - dow); weekStart.setHours(0,0,0,0);
     const monthStart = new Date(y, m, 1);
 
+    // allQuotes is already filtered (no archived), use it directly
     let wCount=0, wAmt=0, mCount=0, mAmt=0;
     allQuotes.forEach(q => {
       const d = new Date(q.date);
