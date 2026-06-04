@@ -454,6 +454,7 @@ body { font-family: 'Segoe UI', -apple-system, sans-serif; background: #f0f2f5; 
       <div class="card">
         <div class="crm-filters" id="crm-filters"></div>
         <div class="crm-sort-bar">
+          <button class="btn btn-primary btn-sm" onclick="showAddLeadModal()" style="white-space:nowrap;font-weight:700;">＋ 新增潛在客戶</button>
           <input id="crm-search" placeholder="搜尋客戶名稱、國家、標籤..." style="flex:1;padding:6px 10px;border:1px solid #e0e0e0;border-radius:8px;font-size:13px;" oninput="renderCRM()">
           <select id="crm-sort" onchange="renderCRM()" style="padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;">
             <option value="followup">按追單日排序</option>
@@ -616,6 +617,43 @@ body { font-family: 'Segoe UI', -apple-system, sans-serif; background: #f0f2f5; 
       <div class="row">
         <div class="field" style="flex:2"><label>公司名稱（英文）</label><input id="companyName" value="" onchange="saveSettings()"></div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Lead Modal -->
+<div class="modal-overlay" id="lead-modal">
+  <div class="modal" style="max-width:480px;">
+    <h3>🌱 新增潛在客戶 (Lead)</h3>
+    <div class="row">
+      <div class="field" style="flex:2;"><label>客戶名稱 <span style="color:red;">*</span></label><input id="lead-name" placeholder="e.g. John Smith"></div>
+      <div class="field"><label>國家</label>
+        <select id="lead-country">
+          <option value="">-- 選擇國家 --</option>
+          <option>Australia</option><option>USA</option><option>UK</option><option>Canada</option>
+          <option>New Zealand</option><option>Germany</option><option>France</option>
+          <option>Japan</option><option>Singapore</option><option>Others</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field"><label>聯絡電話</label><input id="lead-phone" placeholder="電話號碼"></div>
+      <div class="field"><label>Email</label><input id="lead-email" placeholder="email@example.com"></div>
+    </div>
+    <div class="field">
+      <label>產品需求 / 第一次聯絡說明</label>
+      <textarea id="lead-note" rows="3" placeholder="e.g. 詢問客製化馬克杯，數量約500個，需要LOGO印製..." style="width:100%;padding:6px 10px;border:1px solid #e0e0e0;border-radius:6px;font-size:13px;box-sizing:border-box;resize:vertical;"></textarea>
+    </div>
+    <div class="field" style="max-width:180px;">
+      <label>負責帳號</label>
+      <select id="lead-account">
+        <option value="主帳">主帳</option><option value="IRIS帳">IRIS帳</option>
+        <option value="TINA帳">TINA帳</option><option value="ElenaLin帳">ElenaLin帳</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button class="btn btn-primary" onclick="saveLead()" style="flex:1;">儲存潛在客戶</button>
+      <button class="btn btn-outline" onclick="closeModal('lead-modal')">取消</button>
     </div>
   </div>
 </div>
@@ -1502,6 +1540,11 @@ function updateCardSupplier(custId, idx, value) {
 
 function resetQuoteForm() {
   if (!confirm('確定要清空所有報價資料，建立新報價嗎？')) return;
+  silentResetQuoteForm();
+  showToast('已清空，可以開始新報價！');
+}
+
+function silentResetQuoteForm() {
   el('customerName').value = '';
   el('customerCountry').value = '';
   el('customerPostcode').value = '';
@@ -1526,7 +1569,6 @@ function resetQuoteForm() {
   recalc();
   initQuoteSuppliersRow();
   window.scrollTo({ top: 0, behavior: 'smooth' });
-  showToast('已清空，可以開始新報價！');
 }
 
 function exportPDF() {
@@ -1887,7 +1929,9 @@ function renderCRM() {
         ${c.productType ? `<span style="color:#555;">| ${escapeHtml(c.productType)}</span>` : ''}
         <span class="cc-followup ${fuClass}">${fuText}</span>
         ${c.estimatedAmount > 0 ? `<span style="color:#0f9d58;font-weight:600;">預估 $${c.estimatedAmount.toLocaleString()}</span>` : ''}
-        <span>報價 ${c.quotes ? c.quotes.length : 0} 次 / 累計 $${totalQuoted.toFixed(0)}</span>
+        ${(c.quotes||[]).length === 0
+          ? `<span style="background:#e8f5e9;color:#2e7d32;border-radius:8px;padding:1px 8px;font-size:10px;font-weight:600;">🌱 尚未報價</span>`
+          : `<span>報價 ${c.quotes.length} 次 / 累計 $${totalQuoted.toFixed(0)}</span>`}
       </div>
 
       ${latestNote ? `<div class="cc-status-note">${escapeHtml(latestNote.text)}</div>` : ''}
@@ -1965,7 +2009,9 @@ function renderCRM() {
       </div>
 
       <div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap;">
-        ${!c.noTracking ? `<button class="btn btn-copy btn-sm" onclick="loadCustomerToQuote(${c.id})">重新報價</button>` : ''}
+        ${!c.noTracking && c.status === 'inquiry' && (c.quotes||[]).length === 0
+          ? `<button class="btn btn-sm" style="background:#1a73e8;color:white;font-weight:700;padding:4px 12px;" onclick="loadCustomerToQuote(${c.id})">✏️ 開始報價 →</button>`
+          : (!c.noTracking ? `<button class="btn btn-copy btn-sm" onclick="loadCustomerToQuote(${c.id})">重新報價</button>` : '')}
         ${!c.noTracking && lastQuote ? `<button class="btn btn-sm" style="background:#666;color:white;" onclick="copyText(\`${escapeAttr(lastQuote.quoteText || '')}\`)">複製最近報價</button>` : ''}
         <button class="btn btn-sm" style="background:#7b1fa2;color:white;" onclick="showEditCustomer(${c.id})">編輯</button>
         ${currentRole==='admin'?`<button class="btn btn-danger btn-sm" onclick="deleteCustomer(${c.id})">刪除</button>`:''}
@@ -2189,8 +2235,52 @@ function loadCustomerToQuote(custId) {
   el('customerEmail').value = c.email || '';
   if (el('customerAccount')) el('customerAccount').value = c.account || '主帳';
   onCountryChange();
+  state._suppressQuoteReset = true; // keep customer data when switching tab
   switchTab('quote');
   showToast(`已載入 ${c.name} 的客戶資料`);
+}
+
+// ── Lead (潛在客戶) ───────────────────────────────────────────
+function showAddLeadModal() {
+  ['lead-name','lead-phone','lead-email','lead-note'].forEach(id => { if(el(id)) el(id).value = ''; });
+  if (el('lead-country')) el('lead-country').value = '';
+  if (el('lead-account')) el('lead-account').value = '主帳';
+  el('lead-modal').classList.add('active');
+  setTimeout(() => el('lead-name')?.focus(), 100);
+}
+
+function saveLead() {
+  const name = (el('lead-name')?.value || '').trim();
+  if (!name) { showToast('請輸入客戶名稱', true); return; }
+
+  // Check duplicate
+  if (state.customers.find(c => c.name.toLowerCase() === name.toLowerCase())) {
+    showToast('此客戶名稱已存在，請直接在客戶卡片新增追蹤紀錄', true); return;
+  }
+
+  const note = (el('lead-note')?.value || '').trim();
+  const notes = note ? [{ date: new Date().toISOString().slice(0,10), text: note, type: 'note' }] : [];
+
+  const lead = {
+    id: Date.now(),
+    name,
+    country: el('lead-country')?.value || '',
+    postcode: '', address: '',
+    phone: el('lead-phone')?.value || '',
+    email: el('lead-email')?.value || '',
+    account: el('lead-account')?.value || '主帳',
+    status: 'inquiry',
+    importance: 2, tags: [], followUpDate: '', productType: '', estimatedAmount: 0,
+    quotes: [], notes,
+    suppliers: [],
+    isLead: true,
+    createdAt: new Date().toISOString().slice(0,10)
+  };
+
+  state.customers.unshift(lead);
+  saveCRM(); renderCRM();
+  closeModal('lead-modal');
+  showToast(`✅ 已建立潛在客戶：${name}`);
 }
 
 function deleteCustomer(custId) {
@@ -3168,6 +3258,11 @@ function switchTab(name) {
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
   el('tab-' + name).classList.add('active');
   if (name === 'crm') { renderCRM(); renderOrders(); renderTools(); }
+  // Auto-clear quote form when navigating to quote tab directly (not from load-customer)
+  if (name === 'quote') {
+    if (!state._suppressQuoteReset) { silentResetQuoteForm(); }
+    state._suppressQuoteReset = false;
+  }
 }
 
 function switchCRMSub(name) {
