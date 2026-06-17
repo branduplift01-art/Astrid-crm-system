@@ -448,6 +448,7 @@ body { font-family: 'Segoe UI', -apple-system, sans-serif; background: #f0f2f5; 
       <button class="crm-subtab" onclick="switchCRMSub('orders')">訂單追蹤</button>
       <button class="crm-subtab" onclick="switchCRMSub('stats')">統計報表</button>
       <button class="crm-subtab" onclick="switchCRMSub('tools')">業務工具</button>
+      <button class="crm-subtab" id="trash-tab-btn" onclick="switchCRMSub('trash')" style="margin-left:auto;color:#e53935;">🗑️ 回收桶</button>
     </div>
 
     <!-- Sub-panel: 客戶總覽 -->
@@ -583,6 +584,17 @@ body { font-family: 'Segoe UI', -apple-system, sans-serif; background: #f0f2f5; 
           </div>
           <button class="btn btn-primary btn-sm" onclick="addResponseTemplate()">新增樣板</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Sub-panel: 回收桶 -->
+    <div id="crm-sub-trash" class="crm-subpanel">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <h2 style="margin-bottom:0;"><span class="icon" style="background:#ffebee;">🗑️</span> 回收桶</h2>
+          <span style="font-size:12px;color:#999;">30天後自動永久刪除</span>
+        </div>
+        <div id="trash-list"></div>
       </div>
     </div>
   </div>
@@ -1086,7 +1098,8 @@ let state = {
   crmSpecialFilter: '',
   crmSubTab: 'customers',
   orderFilter: 'all',
-  showArchived: false
+  showArchived: false,
+  trash: { customers: [], orders: [] }
 };
 
 // ============================================================
@@ -1119,6 +1132,7 @@ function saveSettings() {
 function saveCRM()    { dbSave('crm',    state.customers); }
 function saveOrders() { dbSave('orders', state.orders); }
 function saveTools()  { dbSave('tools',  state.toolsData); }
+function saveTrash()  { dbSave('trash',  state.trash); }
 
 async function loadAllData() {
   // Settings
@@ -1213,6 +1227,21 @@ async function loadAllData() {
   // Tools
   const tools = await dbLoad('tools');
   if (tools) state.toolsData = tools;
+
+  // Trash — load and auto-purge items older than 30 days
+  const trash = await dbLoad('trash');
+  if (trash) {
+    state.trash = trash;
+  }
+  if (!state.trash) state.trash = { customers: [], orders: [] };
+  if (!state.trash.customers) state.trash.customers = [];
+  if (!state.trash.orders) state.trash.orders = [];
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  const beforeC = state.trash.customers.length, beforeO = state.trash.orders.length;
+  state.trash.customers = state.trash.customers.filter(c => (c.deletedAt || '') >= cutoffStr);
+  state.trash.orders    = state.trash.orders.filter(o => (o.deletedAt || '') >= cutoffStr);
+  if (state.trash.customers.length !== beforeC || state.trash.orders.length !== beforeO) saveTrash();
 }
 
 // ============================================================
@@ -1528,7 +1557,7 @@ function renderCardSuppliers(c) {
 }
 
 function updateCardSupplier(custId, idx, value) {
-  const c = state.customers.find(x => x.id === custId);
+  const c = state.customers.find(x => String(x.id) === String(custId));
   if (!c || !c.suppliers) return;
   if (value === '__manual__') {
     const name = prompt('請輸入廠商名稱：');
@@ -2022,6 +2051,114 @@ function renderCRM() {
   }).join('');
 }
 
+// ============================================================
+// TRASH (回收桶)
+// ============================================================
+function renderTrash() {
+  const tc = (state.trash && state.trash.customers) ? state.trash.customers : [];
+  const to = (state.trash && state.trash.orders)    ? state.trash.orders    : [];
+  const today = new Date().toISOString().slice(0, 10);
+
+  function daysLeft(deletedAt) {
+    const diff = Math.round(30 - (new Date(today) - new Date(deletedAt || today)) / 86400000);
+    return Math.max(0, diff);
+  }
+
+  // Update trash tab badge
+  const total = tc.length + to.length;
+  const tabBtn = el('trash-tab-btn');
+  if (tabBtn) tabBtn.textContent = total > 0 ? `🗑️ 回收桶 (${total})` : '🗑️ 回收桶';
+
+  if (tc.length === 0 && to.length === 0) {
+    el('trash-list').innerHTML = '<div class="empty-state"><div class="icon">🗑️</div><div>回收桶是空的</div></div>';
+    return;
+  }
+
+  let html = '';
+
+  if (tc.length > 0) {
+    html += `<div style="font-size:12px;font-weight:700;color:#e53935;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #ffcdd2;">🧑 已刪除的客戶（${tc.length} 位）</div>`;
+    html += tc.map(c => {
+      const d = daysLeft(c.deletedAt);
+      const urgentStyle = d <= 3 ? 'color:#e53935;font-weight:700;' : 'color:#888;';
+      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#fff;border-radius:8px;border:1px solid #ffcdd2;margin-bottom:6px;gap:8px;">
+        <div style="flex:1;min-width:0;">
+          <span style="font-weight:600;">${escapeHtml(c.name)}</span>
+          <span style="color:#999;font-size:11px;margin-left:8px;">${escapeHtml(c.country||'')}</span>
+          <div style="font-size:11px;margin-top:3px;">
+            <span style="color:#888;">刪除於 ${c.deletedAt||'—'}</span>
+            <span style="${urgentStyle};margin-left:8px;">⏳ 剩 ${d} 天</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;">
+          <button class="btn btn-sm" style="background:#0f9d58;color:white;" onclick="restoreCustomer('${c.id}')">↩ 還原</button>
+          <button class="btn btn-sm btn-danger" onclick="permanentDeleteCustomer('${c.id}')">✕ 永久刪除</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  if (to.length > 0) {
+    html += `<div style="font-size:12px;font-weight:700;color:#e53935;margin:${tc.length?'16px':'0'} 0 8px;padding-bottom:4px;border-bottom:2px solid #ffcdd2;">📦 已刪除的訂單（${to.length} 筆）</div>`;
+    html += to.map(o => {
+      const d = daysLeft(o.deletedAt);
+      const urgentStyle = d <= 3 ? 'color:#e53935;font-weight:700;' : 'color:#888;';
+      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#fff;border-radius:8px;border:1px solid #ffcdd2;margin-bottom:6px;gap:8px;">
+        <div style="flex:1;min-width:0;">
+          <span style="font-weight:600;">${escapeHtml(o.customerName||'未知客戶')}</span>
+          <span style="color:#0f9d58;font-size:11px;margin-left:8px;">$${((o.totalUSD||o.usdAmount||0)).toLocaleString()}</span>
+          <div style="font-size:11px;margin-top:3px;">
+            <span style="color:#888;">刪除於 ${o.deletedAt||'—'}</span>
+            <span style="${urgentStyle};margin-left:8px;">⏳ 剩 ${d} 天</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;">
+          <button class="btn btn-sm" style="background:#0f9d58;color:white;" onclick="restoreOrder('${o.id}')">↩ 還原</button>
+          <button class="btn btn-sm btn-danger" onclick="permanentDeleteOrder('${o.id}')">✕ 永久刪除</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  el('trash-list').innerHTML = html;
+}
+
+function restoreCustomer(custId) {
+  const idx = state.trash.customers.findIndex(x => String(x.id) === String(custId));
+  if (idx === -1) return;
+  const c = state.trash.customers[idx];
+  delete c.deletedAt;
+  state.customers.unshift(c);
+  state.trash.customers.splice(idx, 1);
+  saveCRM(); saveTrash(); renderCRM(); renderTrash();
+  showToast(`✅ 已還原客戶：${c.name}`);
+}
+
+function restoreOrder(orderId) {
+  const idx = state.trash.orders.findIndex(x => String(x.id) === String(orderId));
+  if (idx === -1) return;
+  const o = state.trash.orders[idx];
+  delete o.deletedAt;
+  state.orders.unshift(o);
+  state.trash.orders.splice(idx, 1);
+  saveOrders(); saveTrash(); renderOrders(); renderTrash();
+  showToast('✅ 已還原訂單');
+}
+
+function permanentDeleteCustomer(custId) {
+  if (!confirm('確定要永久刪除此客戶嗎？\n此操作無法復原。')) return;
+  state.trash.customers = state.trash.customers.filter(x => String(x.id) !== String(custId));
+  saveTrash(); renderTrash();
+  showToast('已永久刪除');
+}
+
+function permanentDeleteOrder(orderId) {
+  if (!confirm('確定要永久刪除此訂單嗎？\n此操作無法復原。')) return;
+  state.trash.orders = state.trash.orders.filter(x => String(x.id) !== String(orderId));
+  saveTrash(); renderTrash();
+  showToast('已永久刪除');
+}
+
 function setCRMFilter(f) { state.crmFilter = f; state.crmSpecialFilter = ''; renderCRM(); }
 
 function setCRMTagFilter(tag) { state.crmTagFilter = tag; state.crmSpecialFilter = ''; renderCRM(); }
@@ -2046,7 +2183,7 @@ function followUpInfo(dateStr, today) {
 }
 
 function cycleImportance(custId) {
-  const c = state.customers.find(x => x.id === custId);
+  const c = state.customers.find(x => String(x.id) === String(custId));
   if (c) {
     c.importance = (c.importance || 3) % 5 + 1;
     saveCRM(); renderCRM();
@@ -2055,7 +2192,7 @@ function cycleImportance(custId) {
 
 // Set follow-up date directly from card (date input)
 function setFollowUpDate(custId, dateVal) {
-  const c = state.customers.find(x => x.id === custId);
+  const c = state.customers.find(x => String(x.id) === String(custId));
   if (!c) return;
   c.followUpDate = dateVal;
   saveCRM(); renderCRM();
@@ -2063,7 +2200,7 @@ function setFollowUpDate(custId, dateVal) {
 
 // Quick +N days follow-up
 function quickFollowUp(custId, days) {
-  const c = state.customers.find(x => x.id === custId);
+  const c = state.customers.find(x => String(x.id) === String(custId));
   if (!c) return;
   const d = new Date(); d.setDate(d.getDate() + days);
   c.followUpDate = d.toISOString().slice(0, 10);
@@ -2073,7 +2210,7 @@ function quickFollowUp(custId, days) {
 
 // Mark as followed-up: log note + clear date
 function markFollowedUp(custId) {
-  const c = state.customers.find(x => x.id === custId);
+  const c = state.customers.find(x => String(x.id) === String(custId));
   if (!c) return;
   const today = new Date().toISOString().slice(0, 10);
   c.notes = c.notes || [];
@@ -2085,7 +2222,7 @@ function markFollowedUp(custId) {
 
 // Toggle no-tracking flag
 function toggleNoTracking(custId) {
-  const c = state.customers.find(x => x.id === custId);
+  const c = state.customers.find(x => String(x.id) === String(custId));
   if (!c) return;
   c.noTracking = !c.noTracking;
   if (c.noTracking) c.followUpDate = '';
@@ -2094,7 +2231,7 @@ function toggleNoTracking(custId) {
 }
 
 function updateAccount(custId, account) {
-  const c = state.customers.find(x => x.id === custId);
+  const c = state.customers.find(x => String(x.id) === String(custId));
   if (!c) return;
   c.account = account;
   saveCRM(); renderCRM();
@@ -2130,7 +2267,7 @@ function markOrderFollowedUp(orderId) {
 }
 
 function updateStatus(custId, newStatus) {
-  const c = state.customers.find(x => x.id === custId);
+  const c = state.customers.find(x => String(x.id) === String(custId));
   if (!c) return;
   const oldLabel = CRM_STATUSES.find(s=>s.value===c.status)?.label || c.status;
   const newLabel = CRM_STATUSES.find(s=>s.value===newStatus)?.label || newStatus;
@@ -2201,7 +2338,7 @@ function addNote(custId) {
   const input = el(`note-input-${custId}`);
   const text = input.value.trim();
   if (!text) return;
-  const c = state.customers.find(x => x.id === custId);
+  const c = state.customers.find(x => String(x.id) === String(custId));
   if (c) {
     c.notes.unshift({ date: new Date().toISOString().slice(0, 10), text, type: 'note' });
     saveCRM(); renderCRM();
@@ -2210,7 +2347,7 @@ function addNote(custId) {
 }
 
 function deleteNote(custId, index) {
-  const c = state.customers.find(x => x.id === custId);
+  const c = state.customers.find(x => String(x.id) === String(custId));
   if (!c) return;
   if (!confirm('刪除這筆備註？')) return;
   c.notes.splice(index, 1);
@@ -2218,7 +2355,7 @@ function deleteNote(custId, index) {
 }
 
 function editNote(custId, index) {
-  const c = state.customers.find(x => x.id === custId);
+  const c = state.customers.find(x => String(x.id) === String(custId));
   if (!c || !c.notes[index]) return;
   const newText = prompt('編輯備註：', c.notes[index].text);
   if (newText === null) return;
@@ -2228,7 +2365,7 @@ function editNote(custId, index) {
 }
 
 function saveSupplierNote(custId, value) {
-  const c = state.customers.find(x => x.id === custId);
+  const c = state.customers.find(x => String(x.id) === String(custId));
   if (!c) return;
   c.supplierNote = value;
   c.supplierNoteUpdated = new Date().toISOString().slice(0, 10);
@@ -2236,7 +2373,7 @@ function saveSupplierNote(custId, value) {
 }
 
 function loadCustomerToQuote(custId) {
-  const c = state.customers.find(x => x.id === custId);
+  const c = state.customers.find(x => String(x.id) === String(custId));
   if (!c) return;
   el('customerName').value = c.name;
   el('customerCountry').value = c.country || '';
@@ -2295,10 +2432,14 @@ function saveLead() {
 }
 
 function deleteCustomer(custId) {
-  if (!confirm('確定要刪除此客戶嗎？')) return;
-  state.customers = state.customers.filter(c => c.id !== custId);
-  saveCRM(); renderCRM();
-  showToast('客戶已刪除');
+  if (!confirm('確定要刪除此客戶嗎？\n30天內可在「回收桶」找回。')) return;
+  const c = state.customers.find(x => String(x.id) === String(custId));
+  if (!c) return;
+  c.deletedAt = new Date().toISOString().slice(0, 10);
+  state.trash.customers.unshift(c);
+  state.customers = state.customers.filter(x => String(x.id) !== String(custId));
+  saveCRM(); saveTrash(); renderCRM();
+  showToast('已移至回收桶（30天後永久刪除）');
 }
 
 function copyText(text) {
@@ -2309,7 +2450,7 @@ function copyText(text) {
 // EDIT CUSTOMER MODAL
 // ============================================================
 function showEditCustomer(custId) {
-  const c = state.customers.find(x => x.id === custId);
+  const c = state.customers.find(x => String(x.id) === String(custId));
   if (!c) return;
 
   const tagOptions = DEFAULT_TAGS.map(t => {
@@ -2475,11 +2616,14 @@ function toggleOrderField(orderId, field, val) {
 }
 
 function deleteOrder(orderId) {
-  if (!confirm('確定要刪除此訂單嗎？')) return;
-  // Use loose comparison (== not ===) to handle id stored as string vs number
-  state.orders = state.orders.filter(o => String(o.id) !== String(orderId));
-  saveOrders(); renderOrders(); renderDashboard();
-  showToast('訂單已刪除');
+  if (!confirm('確定要刪除此訂單嗎？\n30天內可在「回收桶」找回。')) return;
+  const o = state.orders.find(x => String(x.id) === String(orderId));
+  if (!o) return;
+  o.deletedAt = new Date().toISOString().slice(0, 10);
+  state.trash.orders.unshift(o);
+  state.orders = state.orders.filter(x => String(x.id) !== String(orderId));
+  saveOrders(); saveTrash(); renderOrders(); renderDashboard();
+  showToast('已移至回收桶（30天後永久刪除）');
 }
 
 function copyOrder(orderId) {
@@ -2538,7 +2682,7 @@ function calcOrderTotal() {
 }
 
 function convertQuoteToOrder(custId, quoteId) {
-  const c = state.customers.find(x => x.id === custId);
+  const c = state.customers.find(x => String(x.id) === String(custId));
   if (!c) return;
   const q = (c.quotes || []).find(x => x.id === quoteId);
   if (!q) return;
@@ -3280,12 +3424,13 @@ function switchTab(name) {
 
 function switchCRMSub(name) {
   state.crmSubTab = name;
-  const labels = { customers: '客戶總覽', orders: '訂單追蹤', stats: '統計報表', tools: '業務工具' };
+  const labels = { customers: '客戶總覽', orders: '訂單追蹤', stats: '統計報表', tools: '業務工具', trash: '回收桶' };
   document.querySelectorAll('.crm-subtab').forEach(t => t.classList.toggle('active', t.textContent.includes(labels[name] || '')));
   document.querySelectorAll('.crm-subpanel').forEach(p => p.classList.remove('active'));
   el('crm-sub-' + name).classList.add('active');
-  if (name === 'stats') renderStats();
+  if (name === 'stats')  renderStats();
   if (name === 'orders') renderOrders();
+  if (name === 'trash')  renderTrash();
 }
 
 function showToast(msg, isError = false) {
