@@ -2434,11 +2434,23 @@ function saveLead() {
 
 function deleteCustomer(custId) {
   if (!confirm('確定要刪除此客戶嗎？\n30天內可在「回收桶」找回。')) return;
-  const c = state.customers.find(x => String(x.id) === String(custId));
-  if (!c) return;
+
+  if (!state.trash) state.trash = { customers: [], orders: [] };
+  if (!state.trash.customers) state.trash.customers = [];
+
+  const idx = state.customers.findIndex(x => x.id == custId);
+  if (idx === -1) {
+    console.error('[deleteCustomer] customer not found, id =', custId);
+    showToast('找不到此客戶，請重新整理頁面後再試', true);
+    return;
+  }
+
+  const c = Object.assign({}, state.customers[idx]);
   c.deletedAt = new Date().toISOString().slice(0, 10);
+
   state.trash.customers.unshift(c);
-  state.customers = state.customers.filter(x => String(x.id) !== String(custId));
+  state.customers.splice(idx, 1);
+
   saveCRM(); saveTrash(); renderCRM();
   showToast('已移至回收桶（30天後永久刪除）');
 }
@@ -2666,11 +2678,26 @@ function toggleOrderField(orderId, field, val) {
 
 function deleteOrder(orderId) {
   if (!confirm('確定要刪除此訂單嗎？\n30天內可在「回收桶」找回。')) return;
-  const o = state.orders.find(x => String(x.id) === String(orderId));
-  if (!o) return;
+
+  // Guard: ensure trash is always available
+  if (!state.trash) state.trash = { customers: [], orders: [] };
+  if (!state.trash.orders) state.trash.orders = [];
+
+  // Use loose == to handle string/number mismatch from Supabase
+  const idx = state.orders.findIndex(x => x.id == orderId);
+  if (idx === -1) {
+    console.error('[deleteOrder] order not found, id =', orderId, 'orders =', state.orders.map(x=>x.id));
+    showToast('找不到此訂單，請重新整理頁面後再試', true);
+    return;
+  }
+
+  // Shallow-copy the object so trash has its own copy
+  const o = Object.assign({}, state.orders[idx]);
   o.deletedAt = new Date().toISOString().slice(0, 10);
+
   state.trash.orders.unshift(o);
-  state.orders = state.orders.filter(x => String(x.id) !== String(orderId));
+  state.orders.splice(idx, 1);   // remove in-place — no string comparison needed
+
   saveOrders(); saveTrash(); renderOrders(); renderDashboard();
   showToast('已移至回收桶（30天後永久刪除）');
 }
