@@ -1099,6 +1099,7 @@ let state = {
   crmSubTab: 'customers',
   orderFilter: 'all',
   showArchived: false,
+  showOldDone: false,
   trash: { customers: [], orders: [] }
 };
 
@@ -2511,30 +2512,53 @@ function closeModal(id) { el(id).classList.remove('show'); }
 // ORDER TRACKING
 // ============================================================
 function renderOrders() {
-  // Pipeline counts
-  const counts = { all: state.orders.length };
-  ORDER_STAGES.forEach(s => { counts[s.value] = state.orders.filter(o => o.stage === s.value).length; });
+  const today = new Date().toISOString().slice(0, 10);
+  const cutoff30 = new Date(); cutoff30.setDate(cutoff30.getDate() - 30);
+  const cutoff30Str = cutoff30.toISOString().slice(0, 10);
+
+  // Split done orders: recent (≤30 days) vs old (>30 days, auto-archived)
+  const isDoneOld = o => o.stage === 'done' && (o.updatedAt || o.createdAt || '') < cutoff30Str;
+  const isDoneRecent = o => o.stage === 'done' && !isDoneOld(o);
+
+  const activeOrders  = state.orders.filter(o => o.stage !== 'done');
+  const recentDone    = state.orders.filter(isDoneRecent);
+  const archivedDone  = state.orders.filter(isDoneOld);
+
+  // Pipeline counts (show recent done count; archived shown separately)
+  const counts = { all: activeOrders.length + recentDone.length };
+  ORDER_STAGES.forEach(s => {
+    counts[s.value] = s.value === 'done'
+      ? recentDone.length
+      : state.orders.filter(o => o.stage === s.value).length;
+  });
 
   el('order-pipeline').innerHTML = `
     <div class="order-stage ${state.orderFilter==='all'?'active':''}" onclick="setOrderFilter('all')"><span class="os-count">${counts.all}</span>全部</div>
     ${ORDER_STAGES.map(s => `
       <div class="order-stage ${state.orderFilter===s.value?'active':''}" onclick="setOrderFilter('${s.value}')">
         <span class="os-count">${counts[s.value]||0}</span>${s.label}
+        ${s.value==='done' && archivedDone.length > 0 ? `<span style="font-size:9px;color:#999;display:block;">+${archivedDone.length}封存</span>` : ''}
       </div>
     `).join('')}
   `;
 
-  let filtered = state.orders;
-  if (state.orderFilter !== 'all') filtered = filtered.filter(o => o.stage === state.orderFilter);
+  // Build display list: active + recent done; exclude old done unless toggled
+  let filtered = [...activeOrders, ...recentDone];
+  if (state.orderFilter !== 'all') {
+    filtered = state.orders.filter(o => o.stage === state.orderFilter);
+    // For 'done' filter: show recent + (if toggled) archived
+    if (state.orderFilter === 'done') {
+      filtered = state.showOldDone ? [...recentDone, ...archivedDone] : recentDone;
+    }
+  }
 
-  if (filtered.length === 0) {
+  if (filtered.length === 0 && archivedDone.length === 0) {
     el('order-list').innerHTML = '<div class="empty-state"><div class="icon">📦</div><div>尚無訂單</div></div>';
     return;
   }
 
-  el('order-list').innerHTML = filtered.map(o => {
+  const renderOrderCard = o => {
     const stageInfo = ORDER_STAGES.find(s => s.value === o.stage) || ORDER_STAGES[0];
-    const today = new Date().toISOString().slice(0, 10);
     const ofu = o.followUpDate || '';
     let orderCardStyle = '';
     if (ofu) {
@@ -2600,7 +2624,32 @@ function renderOrders() {
         ${currentRole==='admin'?`<button class="btn btn-danger btn-sm" onclick="deleteOrder(${o.id})">刪除</button>`:''}
       </div>
     </div>`;
-  }).join('');
+  };
+
+  // Render main list + archived-done section
+  let html = filtered.map(renderOrderCard).join('');
+
+  if (archivedDone.length > 0 && state.orderFilter !== 'done') {
+    html += `
+      <div style="margin-top:12px;padding:10px 14px;background:#f5f5f5;border-radius:10px;border:1px dashed #ccc;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <span style="font-size:12px;color:#888;">📦 ${archivedDone.length} 筆完成訂單已封存（超過30天）</span>
+          <button class="btn btn-sm" style="background:#eceff1;color:#546e7a;font-size:11px;" onclick="state.showOldDone=!state.showOldDone;renderOrders()">
+            ${state.showOldDone ? '▲ 收起' : '▼ 展開查看'}
+          </button>
+        </div>
+        ${state.showOldDone ? archivedDone.map(renderOrderCard).join('') : ''}
+      </div>`;
+  } else if (archivedDone.length > 0 && state.orderFilter === 'done') {
+    // When filtering by done, show toggle at top
+    if (!state.showOldDone && recentDone.length === 0) {
+      html = `<div style="padding:10px 14px;background:#f5f5f5;border-radius:10px;border:1px dashed #ccc;margin-bottom:10px;">
+        <span style="font-size:12px;color:#888;">近30天內無新完成訂單</span>
+      </div>` + html;
+    }
+  }
+
+  el('order-list').innerHTML = html || '<div class="empty-state"><div class="icon">📦</div><div>尚無訂單</div></div>';
 }
 
 function setOrderFilter(f) { state.orderFilter = f; renderOrders(); }
