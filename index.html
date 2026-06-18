@@ -1130,10 +1130,10 @@ function saveSettings() {
   });
 }
 
-function saveCRM()    { dbSave('crm',    state.customers); }
-function saveOrders() { dbSave('orders', state.orders); }
-function saveTools()  { dbSave('tools',  state.toolsData); }
-function saveTrash()  { dbSave('trash',  state.trash); }
+function saveCRM()    { return dbSave('crm',    state.customers); }
+function saveOrders() { return dbSave('orders', state.orders); }
+function saveTools()  { return dbSave('tools',  state.toolsData); }
+function saveTrash()  { return dbSave('trash',  state.trash); }
 
 async function loadAllData() {
   // Settings
@@ -1705,11 +1705,15 @@ ${shipDays ? `<div class="notes"><strong>Shipping:</strong> ${esc(shipDays)} shi
 // ============================================================
 // SAVE QUOTE + CRM
 // ============================================================
-function saveQuoteAndCRM() {
-  const quoteText = generateQuote();
+async function saveQuoteAndCRM() {
   const customerName = el('customerName').value.trim();
-  if (!customerName) { showToast('請輸入客戶名稱'); return; }
+  if (!customerName) { showToast('請輸入客戶名稱', true); return; }
 
+  // Disable button to prevent double-save
+  const saveBtn = document.querySelector('[onclick="saveQuoteAndCRM()"]');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '儲存中…'; }
+
+  const quoteText = generateQuote();
   const country = el('customerCountry').value || '';
   const postcode = el('customerPostcode').value || '';
   const address = el('customerAddress').value || '';
@@ -1774,14 +1778,22 @@ function saveQuoteAndCRM() {
     type: 'quote'
   });
 
-  // Set follow-up date to 7 days from now if not set
   if (!customer.followUpDate) {
     const d = new Date(); d.setDate(d.getDate() + 7);
     customer.followUpDate = d.toISOString().slice(0, 10);
   }
 
-  saveCRM(); renderCRM();
-  showToast('已儲存報價並建立客戶紀錄！');
+  // ── AWAIT the actual Supabase save — only show success after confirmed ──
+  try {
+    await dbSave('crm', state.customers);
+    renderCRM();
+    showToast('✅ 報價已確認儲存！');
+  } catch(e) {
+    showToast('❌ 儲存失敗！請重試或檢查網路', true);
+    console.error('saveQuoteAndCRM failed:', e);
+  } finally {
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '儲存報價 + 建立客戶'; }
+  }
 }
 
 // ============================================================
@@ -2336,15 +2348,23 @@ function updateStatus(custId, newStatus) {
   if (newStatus !== 'ordered') showToast(`客戶狀態已更新為「${newLabel}」`);
 }
 
-function addNote(custId) {
+async function addNote(custId) {
   const input = el(`note-input-${custId}`);
   const text = input.value.trim();
   if (!text) return;
   const c = state.customers.find(x => String(x.id) === String(custId));
-  if (c) {
-    c.notes.unshift({ date: new Date().toISOString().slice(0, 10), text, type: 'note' });
-    saveCRM(); renderCRM();
-    showToast('備註已新增');
+  if (!c) return;
+  c.notes.unshift({ date: new Date().toISOString().slice(0, 10), text, type: 'note' });
+  input.value = '';
+  input.disabled = true;
+  try {
+    await saveCRM();
+    renderCRM();
+    showToast('✅ 備註已儲存');
+  } catch(e) {
+    showToast('❌ 備註儲存失敗，請重試', true);
+  } finally {
+    input.disabled = false;
   }
 }
 
