@@ -1172,7 +1172,21 @@ async function loadAllData() {
   const orders = await dbLoad('orders');
   if (orders) state.orders = orders;
 
+  // Trash — load BEFORE auto-creation so we can check deleted orders
+  const trash = await dbLoad('trash');
+  if (trash) state.trash = trash;
+  if (!state.trash) state.trash = { customers: [], orders: [] };
+  if (!state.trash.customers) state.trash.customers = [];
+  if (!state.trash.orders)    state.trash.orders    = [];
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  const beforeC = state.trash.customers.length, beforeO = state.trash.orders.length;
+  state.trash.customers = state.trash.customers.filter(c => (c.deletedAt || '') >= cutoffStr);
+  state.trash.orders    = state.trash.orders.filter(o => (o.deletedAt || '') >= cutoffStr);
+  if (state.trash.customers.length !== beforeC || state.trash.orders.length !== beforeO) saveTrash();
+
   // 補救：幫所有已進入訂單流程但尚無訂單記錄的客戶自動建立訂單
+  // Skip if the customer's order was manually deleted (exists in trash)
   const ORDER_STATUS_MAP = {
     'ordered':       { stage: 'pending',   orderConfirmed: true,  paymentDone: false, shipped: false },
     'in_production': { stage: 'producing', orderConfirmed: true,  paymentDone: true,  shipped: false },
@@ -1183,7 +1197,9 @@ async function loadAllData() {
   state.customers.forEach(c => {
     const mapping = ORDER_STATUS_MAP[c.status];
     if (!mapping) return;
-    const hasOrder = state.orders.some(o => o.customerId === c.id);
+    // Check both active orders AND trash — if it was deleted, don't recreate
+    const hasOrder = state.orders.some(o => o.customerId == c.id)
+                  || state.trash.orders.some(o => o.customerId == c.id);
     if (!hasOrder) {
       const lastQuote = c.quotes && c.quotes.length > 0 ? c.quotes[0] : null;
       const productDesc = lastQuote
@@ -1228,21 +1244,6 @@ async function loadAllData() {
   // Tools
   const tools = await dbLoad('tools');
   if (tools) state.toolsData = tools;
-
-  // Trash — load and auto-purge items older than 30 days
-  const trash = await dbLoad('trash');
-  if (trash) {
-    state.trash = trash;
-  }
-  if (!state.trash) state.trash = { customers: [], orders: [] };
-  if (!state.trash.customers) state.trash.customers = [];
-  if (!state.trash.orders) state.trash.orders = [];
-  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30);
-  const cutoffStr = cutoff.toISOString().slice(0, 10);
-  const beforeC = state.trash.customers.length, beforeO = state.trash.orders.length;
-  state.trash.customers = state.trash.customers.filter(c => (c.deletedAt || '') >= cutoffStr);
-  state.trash.orders    = state.trash.orders.filter(o => (o.deletedAt || '') >= cutoffStr);
-  if (state.trash.customers.length !== beforeC || state.trash.orders.length !== beforeO) saveTrash();
 }
 
 // ============================================================
