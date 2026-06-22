@@ -2689,7 +2689,12 @@ function setOrderFilter(f) { state.orderFilter = f; renderOrders(); }
 
 function updateOrderStage(orderId, newStage) {
   const o = state.orders.find(x => String(x.id) === String(orderId));
-  if (o) { o.stage = newStage; o.updatedAt = new Date().toISOString().slice(0,10); saveOrders(); renderOrders(); renderDashboard(); }
+  if (!o) return;
+  o.stage = newStage;
+  o.updatedAt = new Date().toISOString().slice(0, 10);
+  // Switch pipeline filter to the new stage so the order stays visible
+  state.orderFilter = newStage;
+  saveOrders(); renderOrders(); renderDashboard();
 }
 
 function toggleOrderField(orderId, field, val) {
