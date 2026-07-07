@@ -203,7 +203,8 @@ body { font-family: 'Segoe UI', -apple-system, sans-serif; background: #f0f2f5; 
 .status-inquiry { background: #f3e5f5; color: #7b1fa2; }
 .status-sample { background: #e3f2fd; color: #1565c0; }
 .status-quoted { background: #fff3e0; color: #e65100; }
-.status-following { background: #fce4ec; color: #c62828; }
+.status-following { background: #fff3e0; color: #e65100; } /* legacy alias → quoted */
+.status-sourcing { background: #e3f2fd; color: #1565c0; }
 .status-pending_payment { background: #fff8e1; color: #f57f17; }
 .status-in_production { background: #e0f2f1; color: #00695c; }
 .status-shipped { background: #e8f5e9; color: #2e7d32; }
@@ -460,8 +461,9 @@ body { font-family: 'Segoe UI', -apple-system, sans-serif; background: #f0f2f5; 
           <input id="crm-search" placeholder="搜尋客戶名稱、國家、標籤..." style="flex:1;padding:6px 10px;border:1px solid #e0e0e0;border-radius:8px;font-size:13px;" oninput="renderCRM()">
           <select id="crm-sort" onchange="renderCRM()" style="padding:6px 8px;border:1px solid #e0e0e0;border-radius:6px;font-size:12px;">
             <option value="followup">按追單日排序</option>
-            <option value="importance">按重要性排序</option>
+            <option value="importance">按星星排序</option>
             <option value="quote_amount">按報價金額排序</option>
+            <option value="strikes">按追蹤次數排序</option>
             <option value="name">按名稱排序</option>
             <option value="newest">按建立時間排序</option>
           </select>
@@ -691,6 +693,16 @@ body { font-family: 'Segoe UI', -apple-system, sans-serif; background: #f0f2f5; 
     <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
       <button class="btn btn-outline" onclick="closeModal('order-modal')">取消</button>
       <button class="btn btn-primary" id="order-modal-save">儲存</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="history-modal">
+  <div class="modal" style="max-width:680px;max-height:80vh;overflow-y:auto;">
+    <h3 id="history-modal-title">客戶歷程</h3>
+    <div id="history-modal-body"></div>
+    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
+      <button class="btn btn-outline" onclick="closeModal('history-modal')">關閉</button>
     </div>
   </div>
 </div>
@@ -971,25 +983,24 @@ const DEFAULT_TEMPLATES = [
 ];
 
 const CRM_STATUSES = [
-  {value:'inquiry', label:'詢價中', class:'status-inquiry'},
-  {value:'quoted', label:'已報價', class:'status-quoted'},
-  {value:'following', label:'跟進中', class:'status-following'},
-  {value:'pending_payment', label:'待付款', class:'status-pending_payment'},
-  {value:'ordered', label:'已下單', class:'status-ordered'},
-  {value:'in_production', label:'生產中', class:'status-in_production'},
-  {value:'shipped', label:'已出貨', class:'status-shipped'},
-  {value:'completed', label:'完成/復購', class:'status-completed'},
-  {value:'archived', label:'封存', class:'status-archived'},
+  {value:'inquiry',         label:'詢價中',   class:'status-inquiry'},
+  {value:'sourcing',        label:'尋價中',   class:'status-sourcing'},
+  {value:'quoted',          label:'已報價',   class:'status-quoted'},
+  {value:'pending_payment', label:'待付款',   class:'status-pending_payment'},
+  {value:'ordered',         label:'已下單',   class:'status-ordered'},
+  {value:'in_production',   label:'生產中',   class:'status-in_production'},
+  {value:'shipped',         label:'已出貨',   class:'status-shipped'},
+  {value:'completed',       label:'完成/復購', class:'status-completed'},
+  {value:'archived',        label:'封存',     class:'status-archived'},
 ];
 
 const ORDER_STAGES = [
-  {value:'sample',    label:'樣品階段'},
-  {value:'pending',   label:'待成單'},
-  {value:'paid',      label:'已轉為訂單'},
-  {value:'producing', label:'生產中'},
-  {value:'ready',     label:'待付款給廠商'},
-  {value:'shipped',   label:'已出貨'},
-  {value:'done',      label:'完成'},
+  {value:'ready',      label:'待付款給廠商'},
+  {value:'producing',  label:'生產中'},
+  {value:'collecting', label:'集貨中'},
+  {value:'delivering', label:'配送中'},
+  {value:'shipped',    label:'已出貨'},
+  {value:'done',       label:'完成'},
 ];
 
 const ACCOUNTS = ['主帳','IRIS帳','TINA帳','ElenaLin帳'];
@@ -1161,16 +1172,23 @@ async function loadAllData() {
       if (c.estimatedAmount === undefined) c.estimatedAmount = 0;
       if (!c.notes) c.notes = [];
       if (!c.quotes) c.quotes = [];
-      if (c.status === 'new')  c.status = 'inquiry';
-      if (c.status === 'won')  c.status = 'completed';
-      if (c.status === 'lost') c.status = 'completed';
+      if (c.status === 'new')       c.status = 'inquiry';
+      if (c.status === 'won')       c.status = 'completed';
+      if (c.status === 'lost')      c.status = 'completed';
+      if (c.status === 'following') c.status = 'quoted'; // merged: 跟進中 → 已報價
       if (!c.account) c.account = '';
+      if (c.followUpCount === undefined) c.followUpCount = 0;
     });
   }
 
   // Orders
   const orders = await dbLoad('orders');
   if (orders) state.orders = orders;
+  // Migrate legacy stages to new 6-stage flow
+  state.orders.forEach(o => {
+    if (o.stage === 'pending' || o.stage === 'paid') o.stage = 'ready';
+    if (o.stage === 'sample') { o.stage = 'ready'; o.isSample = true; }
+  });
 
   // Trash — load BEFORE auto-creation so we can check deleted orders
   const trash = await dbLoad('trash');
@@ -1188,7 +1206,7 @@ async function loadAllData() {
   // 補救：幫所有已進入訂單流程但尚無訂單記錄的客戶自動建立訂單
   // Skip if the customer's order was manually deleted (exists in trash)
   const ORDER_STATUS_MAP = {
-    'ordered':       { stage: 'pending',   orderConfirmed: true,  paymentDone: false, shipped: false },
+    'ordered':       { stage: 'ready',     orderConfirmed: true,  paymentDone: false, shipped: false },
     'in_production': { stage: 'producing', orderConfirmed: true,  paymentDone: true,  shipped: false },
     'shipped':       { stage: 'shipped',   orderConfirmed: true,  paymentDone: true,  shipped: true  },
     'completed':     { stage: 'done',      orderConfirmed: true,  paymentDone: true,  shipped: true  },
@@ -1900,6 +1918,8 @@ function renderCRM() {
       };
       return getLatestAmt(b) - getLatestAmt(a);
     });
+  } else if (sortBy === 'strikes') {
+    filtered.sort((a, b) => (b.followUpCount || 0) - (a.followUpCount || 0));
   } else if (sortBy === 'newest') {
     filtered.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
   }
@@ -2022,7 +2042,10 @@ function renderCRM() {
                   <tbody>${prodRows}</tbody>
                 </table>
                 <div class="quote-v-total" style="display:flex;justify-content:space-between;align-items:center;">
-                  <button onclick="convertQuoteToOrder(${c.id},${q.id})" style="background:#1a1a2e;color:white;border:none;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-weight:600;">🛒 轉訂單</button>
+                  <div style="display:flex;gap:5px;">
+                    <button onclick="convertQuoteToOrder(${c.id},${q.id})" style="background:#1a1a2e;color:white;border:none;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-weight:600;">🛒 轉訂單</button>
+                    <button onclick="convertQuoteToSample(${c.id},${q.id})" style="background:#1565c0;color:white;border:none;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-weight:600;">📦 轉樣品單</button>
+                  </div>
                   <span>
                     ${q.totalLogo > 0 ? `<span style="font-weight:400;font-size:11px;color:#888;margin-right:8px;">Logo: $${q.totalLogo.toFixed(0)}</span>` : ''}
                     ${q.shipping > 0 ? `<span style="font-weight:400;font-size:11px;color:#888;margin-right:8px;">運費: $${q.shipping.toFixed(0)}</span>` : ''}
@@ -2051,6 +2074,7 @@ function renderCRM() {
         <button class="btn btn-sm" style="background:#e3f2fd;color:#1565c0;padding:2px 7px;font-size:11px;" onclick="quickFollowUp(${c.id},7)">+7天</button>
         <button class="btn btn-sm" style="background:#e3f2fd;color:#1565c0;padding:2px 7px;font-size:11px;" onclick="quickFollowUp(${c.id},14)">+14天</button>
         <button class="btn btn-sm" style="background:#e8f5e9;color:#2e7d32;padding:2px 7px;font-size:11px;" onclick="markFollowedUp(${c.id})">✅ 已追蹤</button>
+        ${(c.followUpCount||0) > 0 ? `<span style="background:${(c.followUpCount||0)>=3?'#e53935':'#ff9800'};color:white;font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;cursor:pointer;" onclick="resetFollowUpCount(${c.id})" title="點擊重置計數">🔔 追蹤 ${c.followUpCount} 次</span>` : ''}
       </div>
 
       <div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap;">
@@ -2058,6 +2082,7 @@ function renderCRM() {
           ? `<button class="btn btn-sm" style="background:#1a73e8;color:white;font-weight:700;padding:4px 12px;" onclick="loadCustomerToQuote(${c.id})">✏️ 開始報價 →</button>`
           : (!c.noTracking ? `<button class="btn btn-copy btn-sm" onclick="loadCustomerToQuote(${c.id})">重新報價</button>` : '')}
         ${!c.noTracking && lastQuote ? `<button class="btn btn-sm" style="background:#666;color:white;" onclick="copyText(\`${escapeAttr(lastQuote.quoteText || '')}\`)">複製最近報價</button>` : ''}
+        <button class="btn btn-sm" style="background:#00695c;color:white;" onclick="showCustomerHistory(${c.id})">📋 客戶歷程</button>
         <button class="btn btn-sm" style="background:#7b1fa2;color:white;" onclick="showEditCustomer(${c.id})">編輯</button>
         ${currentRole==='admin'?`<button class="btn btn-danger btn-sm" onclick="deleteCustomer(${c.id})">刪除</button>`:''}
       </div>
@@ -2228,10 +2253,100 @@ function markFollowedUp(custId) {
   if (!c) return;
   const today = new Date().toISOString().slice(0, 10);
   c.notes = c.notes || [];
-  c.notes.unshift({ date: today, text: '✅ 已追蹤', type: 'note' });
+  c.followUpCount = (c.followUpCount || 0) + 1;
+  c.notes.unshift({ date: today, text: `✅ 已追蹤（第 ${c.followUpCount} 次）`, type: 'note' });
   c.followUpDate = '';
   saveCRM(); renderCRM();
-  showToast('✅ 已標記追蹤完成，提醒已清除');
+  if (c.followUpCount >= 3) {
+    const shouldArchive = confirm(`⚠️ 「${c.name}」已追蹤 ${c.followUpCount} 次無回應。\n\n要將此客戶封存嗎？\n（封存後不再出現在追蹤清單，可隨時取消）`);
+    if (shouldArchive) {
+      c.status = 'archived';
+      c.noTracking = true;
+      c.followUpCount = 0;
+      saveCRM(); renderCRM();
+      showToast(`📦 ${c.name} 已封存`);
+    } else {
+      showToast(`已追蹤 ${c.followUpCount} 次，記得持續跟進！`);
+    }
+  } else {
+    showToast(`✅ 已標記追蹤完成（${c.followUpCount} 次）`);
+  }
+}
+
+function resetFollowUpCount(custId) {
+  const c = state.customers.find(x => String(x.id) === String(custId));
+  if (!c) return;
+  c.followUpCount = 0;
+  saveCRM(); renderCRM();
+  showToast('追蹤計數已重置');
+}
+
+function showCustomerHistory(custId) {
+  const c = state.customers.find(x => String(x.id) === String(custId));
+  if (!c) return;
+  const cOrders = state.orders.filter(o => String(o.customerId) === String(custId));
+  const quotes = c.quotes || [];
+
+  el('history-modal-title').textContent = `📋 ${c.name} 客戶歷程`;
+
+  const quoteSection = quotes.length === 0 ? '<div style="color:#999;font-size:12px;padding:8px 0;">尚無報價記錄</div>' :
+    quotes.map((q, qi) => {
+      const vNum = quotes.length - qi;
+      const prodList = (q.products || []).map(p =>
+        `<span style="display:inline-block;background:#f5f5f5;padding:1px 6px;border-radius:4px;font-size:11px;margin:2px;">${escapeHtml(p.name)} x${p.qty}</span>`
+      ).join('');
+      return `<div style="border:1px solid #e0e0e0;border-radius:8px;padding:8px 12px;margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <span style="background:#1a1a2e;color:white;font-size:11px;font-weight:700;padding:1px 8px;border-radius:10px;">V${vNum}</span>
+          <span style="font-size:11px;color:#888;">${q.date}</span>
+          <span style="font-weight:700;color:#0f9d58;">US$${Number(q.totalAmount||0).toFixed(0)}</span>
+        </div>
+        <div>${prodList}</div>
+        ${q.shipping > 0 ? `<div style="font-size:11px;color:#888;margin-top:3px;">運費: US$${q.shipping.toFixed(0)}</div>` : ''}
+      </div>`;
+    }).join('');
+
+  const orderSection = cOrders.length === 0 ? '<div style="color:#999;font-size:12px;padding:8px 0;">尚無訂單記錄</div>' :
+    cOrders.map(o => {
+      const stageInfo = ORDER_STAGES.find(s => s.value === o.stage) || ORDER_STAGES[0];
+      return `<div style="border:1px solid #c8e6c9;border-radius:8px;padding:8px 12px;margin-bottom:8px;background:#f9fff9;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <span style="font-weight:700;font-size:13px;">${escapeHtml(o.customerName)}</span>
+          ${o.isSample ? `<span style="background:#e3f2fd;color:#1565c0;font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;">SAMPLE</span>` : ''}
+          <span style="background:#e8f5e9;color:#2e7d32;font-size:11px;font-weight:600;padding:1px 8px;border-radius:10px;">${stageInfo.label}</span>
+          <span style="font-weight:700;color:#0f9d58;">${o.totalUSD > 0 ? `US$${Number(o.totalUSD).toFixed(0)}` : o.usdAmount > 0 ? `US$${Number(o.usdAmount).toFixed(0)}` : '—'}</span>
+        </div>
+        <div style="font-size:12px;color:#555;">${escapeHtml(o.product||'')}</div>
+        <div style="font-size:11px;color:#888;margin-top:3px;">建立: ${o.createdAt||'—'}${o.orderDate ? ` ／ 成交: ${o.orderDate}` : ''}</div>
+      </div>`;
+    }).join('');
+
+  const totalQuoteAmt = quotes.length > 0 ? Number(quotes[0].totalAmount || 0) : 0;
+  const totalOrderAmt = cOrders.reduce((s, o) => s + (o.totalUSD || o.usdAmount || 0), 0);
+
+  el('history-modal-body').innerHTML = `
+    <div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:120px;background:#f5f5f5;border-radius:8px;padding:8px 12px;text-align:center;">
+        <div style="font-size:20px;font-weight:700;">${quotes.length}</div>
+        <div style="font-size:11px;color:#888;">報價版本</div>
+        <div style="font-size:12px;color:#4285f4;font-weight:600;">US$${totalQuoteAmt.toFixed(0)}</div>
+      </div>
+      <div style="flex:1;min-width:120px;background:#f5f5f5;border-radius:8px;padding:8px 12px;text-align:center;">
+        <div style="font-size:20px;font-weight:700;">${cOrders.length}</div>
+        <div style="font-size:11px;color:#888;">訂單筆數</div>
+        <div style="font-size:12px;color:#0f9d58;font-weight:600;">US$${totalOrderAmt.toFixed(0)}</div>
+      </div>
+      <div style="flex:1;min-width:120px;background:#f5f5f5;border-radius:8px;padding:8px 12px;text-align:center;">
+        <div style="font-size:20px;font-weight:700;">${'★'.repeat(c.importance||3)}${'☆'.repeat(5-(c.importance||3))}</div>
+        <div style="font-size:11px;color:#888;">重要性</div>
+      </div>
+    </div>
+    <h4 style="font-size:13px;font-weight:700;margin-bottom:8px;color:#1a1a2e;">📋 報價紀錄（${quotes.length} 版）</h4>
+    ${quoteSection}
+    <h4 style="font-size:13px;font-weight:700;margin:14px 0 8px;color:#1a1a2e;">📦 訂單紀錄（${cOrders.length} 筆）</h4>
+    ${orderSection}
+  `;
+  el('history-modal').classList.add('show');
 }
 
 // Toggle no-tracking flag
@@ -2294,6 +2409,10 @@ function updateStatus(custId, newStatus) {
   } else if (c.noTracking) {
     c.noTracking = false;
   }
+  // 客戶有實質進展 → 重置追蹤計數
+  if (['ordered','in_production','shipped','completed','pending_payment'].includes(newStatus)) {
+    c.followUpCount = 0;
+  }
 
   c.notes.unshift({
     date: new Date().toISOString().slice(0, 10),
@@ -2333,7 +2452,7 @@ function updateStatus(custId, newStatus) {
         factoryNote: '', trackingNumber: '',
         address: c.address || '',
         notes: noteLines.join('\n'),
-        stage: 'pending',
+        stage: 'ready',
         autoCreated: true,
         createdAt: new Date().toISOString().slice(0,10),
         updatedAt: new Date().toISOString().slice(0,10)
@@ -2607,6 +2726,7 @@ function renderOrders() {
         <div>
           <span class="oc-name">${escapeHtml(o.customerName)}</span>
           <span style="font-size:12px;color:#888;margin-left:6px;">${escapeHtml(o.country||'')}</span>
+          ${o.isSample ? `<span style="background:#e3f2fd;color:#1565c0;font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;margin-left:5px;">SAMPLE</span>` : ''}
         </div>
         <div style="display:flex;align-items:center;gap:6px;">
           <select style="padding:3px 6px;border:1px solid #e0e0e0;border-radius:6px;font-size:11px;" onchange="updateOrderStage(${o.id}, this.value)">
@@ -2735,7 +2855,7 @@ function copyOrder(orderId) {
   const newOrder = {
     ...o,
     id: newId,
-    stage: 'pending',
+    stage: 'ready',
     orderConfirmed: false,
     paymentDone: false,
     shipped: false,
@@ -2812,7 +2932,7 @@ function convertQuoteToOrder(custId, quoteId) {
     </div>
     <div class="row">
       <div class="field"><label>工廠金額 (RMB)</label><input id="ord-rmb" type="number" value="0"></div>
-      <div class="field"><label>訂單階段</label><select id="ord-stage">${ORDER_STAGES.map(s=>`<option value="${s.value}" ${s.value==='pending'?'selected':''}>${s.label}</option>`).join('')}</select></div>
+      <div class="field"><label>訂單階段</label><select id="ord-stage">${ORDER_STAGES.map(s=>`<option value="${s.value}" ${s.value==='ready'?'selected':''}>${s.label}</option>`).join('')}</select></div>
     </div>
     <div class="row">
       <div class="field"><label>代運公司</label>${buildSelectHTML('ord-forwarder', DEFAULT_FORWARDERS, '', '-- 選擇代運 --')}</div>
@@ -2892,6 +3012,93 @@ function convertQuoteToOrder(custId, quoteId) {
     saveOrders(); saveCRM(); renderOrders(); renderCRM(); renderDashboard();
     closeModal('order-modal');
     showToast('✅ 訂單已建立，CRM 狀態已更新為「已下單」');
+  };
+  el('order-modal').classList.add('show');
+}
+
+function convertQuoteToSample(custId, quoteId) {
+  const c = state.customers.find(x => String(x.id) === String(custId));
+  if (!c) return;
+  const q = (c.quotes || []).find(x => x.id === quoteId);
+  if (!q) return;
+
+  const productDesc = (q.products || []).map(p =>
+    `${p.name} x${p.qty}${p.unitPrice ? ` (US$${Number(p.unitPrice).toFixed(2)}/pc)` : ''}`
+  ).join('\n');
+  const usdAmount = (q.products || []).reduce((s, p) => s + (p.unitPrice || 0) * (p.qty || 0), 0) + (q.totalLogo || 0);
+  const shipping = q.shipping || 0;
+  const total = q.totalAmount || 0;
+
+  el('order-modal-title').textContent = `📦 轉樣品單：${c.name}`;
+  el('order-modal-body').innerHTML = `
+    <div style="background:#e3f2fd;border:1px solid #90caf9;border-radius:6px;padding:6px 10px;font-size:12px;margin-bottom:10px;">
+      📦 <strong>樣品單</strong>：此訂單將標記為「樣品單」，不計入正式訂單金額統計
+    </div>
+    <div class="row"><div class="field"><label>客戶名稱</label><input id="ord-name" value="${escapeAttr(c.name)}"></div><div class="field"><label>國家</label><input id="ord-country" value="${escapeAttr(c.country||'')}"></div></div>
+    <div class="row"><div class="field" style="flex:2"><label>產品描述</label><textarea id="ord-product" rows="3" style="resize:vertical;">${escapeHtml(productDesc)}</textarea></div></div>
+    <div class="row">
+      <div class="field"><label>產品金額 (USD)</label><input id="ord-usd" type="number" value="${usdAmount.toFixed(2)}" oninput="calcOrderTotal()"></div>
+      <div class="field"><label>運費 (USD)</label><input id="ord-shipping" type="number" value="${shipping.toFixed(2)}" oninput="calcOrderTotal()"></div>
+      <div class="field"><label>合計 (USD)</label><input id="ord-total" type="number" readonly style="background:#f0fff4;font-weight:600;" value="${total.toFixed(2)}"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>工廠金額 (RMB)</label><input id="ord-rmb" type="number" value="0"></div>
+      <div class="field"><label>訂單階段</label><select id="ord-stage">${ORDER_STAGES.map(s=>`<option value="${s.value}" ${s.value==='ready'?'selected':''}>${s.label}</option>`).join('')}</select></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>代運公司</label>${buildSelectHTML('ord-forwarder', DEFAULT_FORWARDERS, '', '-- 選擇代運 --')}</div>
+      <div class="field"><label>貨運方式</label>${buildSelectHTML('ord-shiptype', DEFAULT_SHIP_TYPES, '', '-- 選擇方式 --')}</div>
+    </div>
+    <div class="row">
+      <div class="field"><label>主要廠商</label>${buildSelectHTML('ord-supplier', DEFAULT_SUPPLIERS, '', '-- 選擇廠商 --')}</div>
+    </div>
+    <div class="row">
+      <div class="field"><label>成交日期</label><input id="ord-order-date" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+      <div class="field"><label>預計出貨日</label><input id="ord-ship-date" type="date"></div>
+      <div class="field"><label>預計抵達日</label><input id="ord-eta-date" type="date"></div>
+    </div>
+    <div class="row"><div class="field" style="flex:2"><label>地址</label><input id="ord-address" value="${escapeAttr(c.address||'')}"></div></div>
+    <div class="row"><div class="field" style="flex:2"><label>備註</label><textarea id="ord-notes" rows="2"></textarea></div></div>
+  `;
+  initSelectOther('ord-forwarder'); initSelectOther('ord-shiptype'); initSelectOther('ord-supplier');
+
+  el('order-modal-save').onclick = () => {
+    const name = el('ord-name').value.trim();
+    if (!name) { showToast('請輸入客戶名稱'); return; }
+    const sv = getSelectVal('ord-supplier');
+    const newOrder = {
+      id: Date.now(),
+      customerId: c.id,
+      customerName: name,
+      country: el('ord-country').value,
+      product: el('ord-product').value,
+      usdAmount: parseFloat(el('ord-usd').value) || 0,
+      shippingFee: parseFloat(el('ord-shipping').value) || 0,
+      totalUSD: parseFloat(el('ord-total').value) || 0,
+      rmbAmount: parseFloat(el('ord-rmb').value) || 0,
+      orderConfirmed: true, paymentDone: false, shipped: false,
+      isSample: true,
+      suppliers: sv ? [sv] : [],
+      supplier: sv || '',
+      forwarder: getSelectVal('ord-forwarder'),
+      shipType: getSelectVal('ord-shiptype'),
+      factoryNote: '', trackingNumber: '',
+      address: el('ord-address').value,
+      notes: el('ord-notes').value,
+      stage: el('ord-stage').value,
+      fromQuoteId: quoteId,
+      orderDate: el('ord-order-date')?.value || new Date().toISOString().slice(0,10),
+      shipDate: el('ord-ship-date')?.value || '',
+      etaDate: el('ord-eta-date')?.value || '',
+      createdAt: new Date().toISOString().slice(0, 10),
+      updatedAt: new Date().toISOString().slice(0, 10),
+    };
+    state.orders.unshift(newOrder);
+    c.notes = c.notes || [];
+    c.notes.unshift({ date: new Date().toISOString().slice(0,10), text: `📦 樣品單已建立（US$${total.toFixed(0)}）`, type: 'status' });
+    saveOrders(); saveCRM(); renderOrders(); renderCRM(); renderDashboard();
+    closeModal('order-modal');
+    showToast('📦 樣品單已建立');
   };
   el('order-modal').classList.add('show');
 }
@@ -3091,9 +3298,12 @@ function renderStats() {
   const allQuotes = [];
   state.customers.forEach(c => {
     if (c.noTracking || c.status === 'archived') return; // 封存客戶不計入統計
-    (c.quotes || []).forEach(q => {
+    // Only count the latest quote version per customer (c.quotes[0] = newest)
+    // to avoid inflating stats when V1/V2/V3 are revisions of the same negotiation
+    if (c.quotes && c.quotes.length > 0) {
+      const q = c.quotes[0];
       allQuotes.push({ date: q.date, amount: q.totalAmount || 0, customer: c.name, country: c.country || 'Unknown', products: q.products || [] });
-    });
+    }
   });
 
   // ── 本週 / 本月 快速總覽 ──
@@ -3179,8 +3389,8 @@ function renderStats() {
     <div class="dash-stat"><div class="ds-value">${customerCount}</div><div class="ds-label">報價客戶數</div></div>
   `;
 
-  // ── 訂單統計 ──
-  const allOrders = state.orders.map(o => ({
+  // ── 訂單統計（排除樣品單）──
+  const allOrders = state.orders.filter(o => !o.isSample).map(o => ({
     date: o.createdAt || '',
     usdAmount: o.totalUSD || o.usdAmount || 0,   // totalUSD takes priority
     rmbAmount: o.rmbAmount || 0,
