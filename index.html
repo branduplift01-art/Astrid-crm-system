@@ -1759,7 +1759,12 @@ async function saveQuoteAndCRM() {
     id: Date.now(),
     date: new Date().toISOString().slice(0, 10),
     products, totalLogo, shipping, totalAmount, quoteText,
-    suppliers: getQuoteSuppliers()
+    suppliers: getQuoteSuppliers(),
+    rates: {
+      usdTwd: state.rates.usdTwd,
+      rmbTwd: state.rates.rmbTwd,
+      usdRmb: state.rates.usdRmb,
+    }
   };
 
   const account = el('customerAccount')?.value || '主帳';
@@ -2041,6 +2046,11 @@ function renderCRM() {
                   <thead><tr><th>產品</th><th style="text-align:right;">數量</th><th style="text-align:right;">單價</th><th style="text-align:right;">小計</th></tr></thead>
                   <tbody>${prodRows}</tbody>
                 </table>
+                ${q.rates ? `<div style="display:flex;gap:8px;flex-wrap:wrap;font-size:10px;color:#888;padding:3px 0;border-top:1px solid #f0f0f0;margin-top:4px;">
+                  <span>💱 USD/TWD: ${q.rates.usdTwd}</span>
+                  <span>RMB/TWD: ${q.rates.rmbTwd}</span>
+                  <span>USD/RMB: ${q.rates.usdRmb}</span>
+                </div>` : ''}
                 <div class="quote-v-total" style="display:flex;justify-content:space-between;align-items:center;">
                   <div style="display:flex;gap:5px;">
                     <button onclick="convertQuoteToOrder(${c.id},${q.id})" style="background:#1a1a2e;color:white;border:none;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-weight:600;">🛒 轉訂單</button>
@@ -2303,6 +2313,7 @@ function showCustomerHistory(custId) {
         </div>
         <div>${prodList}</div>
         ${q.shipping > 0 ? `<div style="font-size:11px;color:#888;margin-top:3px;">運費: US$${q.shipping.toFixed(0)}</div>` : ''}
+        ${q.rates ? `<div style="font-size:10px;color:#aaa;margin-top:3px;">💱 USD/TWD ${q.rates.usdTwd} · RMB/TWD ${q.rates.rmbTwd} · USD/RMB ${q.rates.usdRmb}</div>` : ''}
       </div>`;
     }).join('');
 
