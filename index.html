@@ -1110,6 +1110,7 @@ let state = {
   crmSubTab: 'customers',
   orderFilter: 'all',
   showArchived: false,
+  showOrdered: false,
   showOldDone: false,
   trash: { customers: [], orders: [] }
 };
@@ -1853,11 +1854,14 @@ const QUOTE_ONLY_STATUSES = CRM_STATUSES.filter(s => !ORDER_STAGE_STATUSES.inclu
 function renderCRM() {
   renderDashboard();
 
-  // Separate active vs archived customers
-  const activeCustomers = state.customers.filter(c => !ORDER_STAGE_STATUSES.includes(c.status) && !c.noTracking);
+  // Separate active vs archived vs ordered customers
+  const activeCustomers  = state.customers.filter(c => !ORDER_STAGE_STATUSES.includes(c.status) && !c.noTracking);
   const archivedCustomers = state.customers.filter(c => !ORDER_STAGE_STATUSES.includes(c.status) && c.noTracking);
+  const orderedCustomersList = state.customers.filter(c => ORDER_STAGE_STATUSES.includes(c.status));
 
-  const baseList = state.showArchived ? archivedCustomers : activeCustomers;
+  const baseList = state.showOrdered ? orderedCustomersList
+    : state.showArchived ? archivedCustomers
+    : activeCustomers;
   const counts = { all: baseList.length };
   QUOTE_ONLY_STATUSES.forEach(s => { counts[s.value] = baseList.filter(c => c.status === s.value).length; });
 
@@ -1875,7 +1879,10 @@ function renderCRM() {
       <button class="crm-filter-btn ${!state.showArchived && state.crmFilter===s.value?'active':''}" onclick="state.showArchived=false;setCRMFilter('${s.value}')">
         ${s.label}<span class="badge">${activeCustomers.filter(c=>c.status===s.value).length}</span>
       </button>`).join('')}
-    <button class="crm-filter-btn ${state.showArchived?'active':''}" style="margin-left:auto;background:${state.showArchived?'#546e7a':'#eceff1'};color:${state.showArchived?'white':'#546e7a'};" onclick="state.showArchived=!state.showArchived;state.crmFilter='all';renderCRM()">
+    <button class="crm-filter-btn ${state.showOrdered?'active':''}" style="margin-left:auto;background:${state.showOrdered?'#1a1a2e':'#e8eaf6'};color:${state.showOrdered?'white':'#283593'};" onclick="state.showOrdered=!state.showOrdered;state.showArchived=false;state.crmFilter='all';renderCRM()">
+      🛒 已成單客戶<span class="badge">${orderedCustomersList.length}</span>
+    </button>
+    <button class="crm-filter-btn ${state.showArchived?'active':''}" style="background:${state.showArchived?'#546e7a':'#eceff1'};color:${state.showArchived?'white':'#546e7a'};" onclick="state.showArchived=!state.showArchived;state.showOrdered=false;state.crmFilter='all';renderCRM()">
       📦 封存客戶<span class="badge">${archivedCustomers.length}</span>
     </button>
     ${tagRow}
@@ -2782,7 +2789,8 @@ function renderOrders() {
         ${ofuText ? `<span style="font-size:11px;font-weight:600;color:${ofuDiff < 0 ? '#e53935' : ofuDiff === 0 ? '#f57c00' : '#555'};">${ofuText}</span>` : ''}
       </div>
 
-      <div style="margin-top:6px;display:flex;gap:4px;">
+      <div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap;">
+        ${o.customerId ? `<button class="btn btn-sm" style="background:#00695c;color:white;" onclick="showCustomerHistory(${o.customerId})">📋 報價紀錄</button>` : ''}
         <button class="btn btn-sm" style="background:#7b1fa2;color:white;" onclick="showEditOrder(${o.id})">編輯</button>
         <button class="btn btn-sm" style="background:#0f9d58;color:white;" onclick="copyOrder(${o.id})">複製訂單</button>
         ${currentRole==='admin'?`<button class="btn btn-danger btn-sm" onclick="deleteOrder(${o.id})">刪除</button>`:''}
