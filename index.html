@@ -418,6 +418,16 @@ body { font-family: 'Segoe UI', -apple-system, sans-serif; background: #f0f2f5; 
           <div class="summary-item" style="background:#fff8e1;"><div class="label">利潤 (RMB)</div><div class="value green" id="sum-profit-rmb" style="font-size:16px;">¥0.00</div></div>
           <div class="summary-item" style="background:#fff8e1;"><div class="label">平均利潤 %</div><div class="value green" id="sum-profit-pct" style="font-size:16px;">0%</div></div>
         </div>
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:160px;background:#fff8e1;border-radius:8px;padding:8px 12px;border-left:3px solid #ff8f00;">
+            <div style="font-size:11px;color:#666;margin-bottom:3px;">📦 產品利潤 (USD)</div>
+            <div id="sum-prod-profit" style="font-weight:700;font-size:15px;color:#999;">—</div>
+          </div>
+          <div style="flex:1;min-width:160px;background:#fff8e1;border-radius:8px;padding:8px 12px;border-left:3px solid #0288d1;">
+            <div style="font-size:11px;color:#666;margin-bottom:3px;">🚚 運費利潤 (USD)</div>
+            <div id="sum-ship-profit" style="font-weight:700;font-size:15px;color:#999;">—</div>
+          </div>
+        </div>
       </div>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <button class="btn btn-success" onclick="generateQuote()" style="flex:1;padding:12px;">產生報價單（客戶版）</button>
@@ -497,6 +507,7 @@ body { font-family: 'Segoe UI', -apple-system, sans-serif; background: #f0f2f5; 
         </div>
 
         <!-- 本週 / 本月 快速總覽 -->
+        <div id="stats-month-nav" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"></div>
         <div id="period-quick-stats" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;padding:10px 12px;background:#f8f9ff;border-radius:10px;border:1px solid #e3f2fd;"></div>
 
         <div style="font-size:12px;font-weight:600;color:#4285f4;margin-bottom:6px;padding-bottom:4px;border-bottom:2px solid #e3f2fd;">
@@ -1117,7 +1128,8 @@ let state = {
   showArchived: false,
   showOrdered: false,
   showOldDone: false,
-  trash: { customers: [], orders: [] }
+  trash: { customers: [], orders: [] },
+  statsMonthOffset: 0
 };
 
 // ============================================================
@@ -1426,6 +1438,32 @@ function recalc() {
   el('sum-total-rmb').textContent = `¥${totalRMB.toFixed(2)}`;
   el('sum-profit-rmb').textContent = `¥${profitRMB.toFixed(2)}`;
   el('sum-profit-pct').textContent = `${profitPct.toFixed(1)}%`;
+
+  // Separate product vs shipping profit
+  const usdRmb = state.rates.usdRmb;
+  const prodRevUSD = totalProducts + totalLogo;
+  const prodCostUSD = totalCostRMB / usdRmb;
+  const prodProfitUSD = prodRevUSD - prodCostUSD;
+  const prodProfitPct = prodRevUSD > 0 ? (prodProfitUSD / prodRevUSD * 100) : 0;
+  const shipCostRMB = parseFloat(el('shippingRMB').value) || 0;
+  const shipCostUSD = shipCostRMB / usdRmb;
+  const shipProfitUSD = shipping - shipCostUSD;
+  const shipProfitPct = shipping > 0 ? (shipProfitUSD / shipping * 100) : 0;
+  const mCol = p => p >= 30 ? '#0f9d58' : p >= 15 ? '#f57c00' : '#e53935';
+
+  const prodEl = el('sum-prod-profit');
+  if (prodEl) {
+    if (prodRevUSD > 0) {
+      prodEl.textContent = `US$ ${prodProfitUSD.toFixed(2)} (${prodProfitPct.toFixed(1)}%)`;
+      prodEl.style.color = mCol(prodProfitPct);
+    } else { prodEl.textContent = '—'; prodEl.style.color = '#999'; }
+  }
+  const shipEl = el('sum-ship-profit');
+  if (shipEl) {
+    if (shipping <= 0) { shipEl.textContent = '—'; shipEl.style.color = '#999'; }
+    else if (shipCostRMB <= 0) { shipEl.textContent = `US$ ${shipping.toFixed(2)}（未填運費成本）`; shipEl.style.color = '#bbb'; }
+    else { shipEl.textContent = `US$ ${shipProfitUSD.toFixed(2)} (${shipProfitPct.toFixed(1)}%)`; shipEl.style.color = mCol(shipProfitPct); }
+  }
 }
 
 function calcShipFromRMB() {
@@ -3361,6 +3399,12 @@ function removeResponseTemplate(i) {
 // ============================================================
 // STATS & CHARTS
 // ============================================================
+function changeStatsMonth(delta) {
+  state.statsMonthOffset = (state.statsMonthOffset || 0) + delta;
+  if (state.statsMonthOffset > 0) state.statsMonthOffset = 0;
+  renderStats();
+}
+
 function renderStats() {
   const period = el('stats-period')?.value || 'monthly';
   const allQuotes = [];
@@ -3377,19 +3421,23 @@ function renderStats() {
   // ── 本週 / 本月 快速總覽 ──
   (function() {
     const now = new Date();
-    const y = now.getFullYear(), m = now.getMonth();
-    // Week: Mon–Sun
-    const dow = (now.getDay() + 6) % 7; // 0=Mon
-    const weekStart = new Date(now); weekStart.setDate(now.getDate() - dow); weekStart.setHours(0,0,0,0);
+    const offset = state.statsMonthOffset || 0;
+    const targetDate = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    const y = targetDate.getFullYear(), m = targetDate.getMonth();
     const monthStart = new Date(y, m, 1);
+    const monthEnd = new Date(y, m + 1, 0, 23, 59, 59, 999);
 
-    // allQuotes is already filtered (no archived), use it directly
+    // Current week (only counted when showing current month)
+    const dow = (now.getDay() + 6) % 7;
+    const weekStart = new Date(now); weekStart.setDate(now.getDate() - dow); weekStart.setHours(0,0,0,0);
+    const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6); weekEnd.setHours(23,59,59,999);
+
     let wCount=0, wAmt=0, mCount=0, mAmt=0;
     allQuotes.forEach(q => {
       const d = new Date(q.date);
       if (isNaN(d)) return;
-      if (d >= weekStart) { wCount++; wAmt += q.amount; }
-      if (d >= monthStart) { mCount++; mAmt += q.amount; }
+      if (offset === 0 && d >= weekStart && d <= weekEnd) { wCount++; wAmt += q.amount; }
+      if (d >= monthStart && d <= monthEnd) { mCount++; mAmt += q.amount; }
     });
 
     const sUsdRmb = state.rates.usdRmb || 7.2453;
@@ -3399,8 +3447,8 @@ function renderStats() {
       if (isNaN(d)) return;
       const rev = o.totalUSD || o.usdAmount || 0;
       const profit = o.rmbAmount > 0 ? rev - (o.rmbAmount / sUsdRmb) : 0;
-      if (d >= weekStart)  { woCount++; woAmt += rev; woProfit += profit; }
-      if (d >= monthStart) { moCount++; moAmt += rev; moProfit += profit; }
+      if (offset === 0 && d >= weekStart && d <= weekEnd) { woCount++; woAmt += rev; woProfit += profit; }
+      if (d >= monthStart && d <= monthEnd) { moCount++; moAmt += rev; moProfit += profit; }
     });
 
     const fmt = n => n >= 1000 ? '$' + Math.round(n/1000) + 'k' : '$' + Math.round(n);
@@ -3419,10 +3467,23 @@ function renderStats() {
         </div>
       </div>`; };
 
+    const monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+    const monthLabel = `${y}年${monthNames[m]}`;
+    const weekLabel = `📅 本週 (${weekStart.getMonth()+1}/${weekStart.getDate()}–${weekEnd.getMonth()+1}/${weekEnd.getDate()})`;
+    const monthBoxLabel = offset === 0 ? `🗓️ 本月 (${monthLabel})` : `🗓️ ${monthLabel}`;
+    const btnBase = 'padding:4px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;font-size:13px;';
+
+    const nav = el('stats-month-nav');
+    if (nav) nav.innerHTML = `
+      <button onclick="changeStatsMonth(-1)" style="${btnBase}">◀</button>
+      <span style="font-weight:700;font-size:13px;color:#444;min-width:88px;text-align:center;">${monthLabel}</span>
+      <button onclick="changeStatsMonth(1)" style="${btnBase}${offset >= 0 ? 'opacity:.35;cursor:default;' : ''}" ${offset >= 0 ? 'disabled' : ''}>▶</button>
+    `;
+
     const pqs = el('period-quick-stats');
     if (pqs) pqs.innerHTML =
-      box('📅 本週', wCount, wAmt, woCount, woAmt, woProfit, '#4285f4') +
-      box('🗓️ 本月', mCount, mAmt, moCount, moAmt, moProfit, '#0f9d58');
+      (offset === 0 ? box(weekLabel, wCount, wAmt, woCount, woAmt, woProfit, '#4285f4') : '') +
+      box(monthBoxLabel, mCount, mAmt, moCount, moAmt, moProfit, '#0f9d58');
   })();
 
   // Group by period
