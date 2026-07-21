@@ -539,6 +539,11 @@ body { font-family: 'Segoe UI', -apple-system, sans-serif; background: #f0f2f5; 
         <canvas id="chart-order-count" height="250" style="width:100%;"></canvas>
       </div>
 
+      <div class="card">
+        <h2><span class="icon" style="background:#fce4ec;">💰</span> 訂單利潤趨勢 <span style="font-size:12px;font-weight:400;color:#888;">（僅有填工廠金額的訂單）</span></h2>
+        <canvas id="chart-order-profit" height="250" style="width:100%;"></canvas>
+      </div>
+
       <div class="card" style="display:flex;gap:16px;flex-wrap:wrap;">
         <div style="flex:1;min-width:280px;">
           <h2><span class="icon" style="background:#e0f2f1;">🌍</span> 報價國家分佈</h2>
@@ -3379,28 +3384,36 @@ function renderStats() {
       if (d >= monthStart) { mCount++; mAmt += q.amount; }
     });
 
-    let woCount=0, woAmt=0, moCount=0, moAmt=0;
-    state.orders.forEach(o => {
+    const sUsdRmb = state.rates.usdRmb || 7.2453;
+    let woCount=0, woAmt=0, woProfit=0, moCount=0, moAmt=0, moProfit=0;
+    state.orders.filter(o => !o.isSample).forEach(o => {
       const d = new Date(o.createdAt || '');
       if (isNaN(d)) return;
-      if (d >= weekStart) { woCount++; woAmt += (o.totalUSD || o.usdAmount || 0); }
-      if (d >= monthStart) { moCount++; moAmt += (o.totalUSD || o.usdAmount || 0); }
+      const rev = o.totalUSD || o.usdAmount || 0;
+      const profit = o.rmbAmount > 0 ? rev - (o.rmbAmount / sUsdRmb) : 0;
+      if (d >= weekStart)  { woCount++; woAmt += rev; woProfit += profit; }
+      if (d >= monthStart) { moCount++; moAmt += rev; moProfit += profit; }
     });
 
     const fmt = n => n >= 1000 ? '$' + Math.round(n/1000) + 'k' : '$' + Math.round(n);
-    const box = (label, qc, qa, oc, oa, color) => `
-      <div style="flex:1;min-width:160px;background:#fff;border-radius:8px;padding:10px 14px;border-left:4px solid ${color};box-shadow:0 1px 4px rgba(0,0,0,.07);">
+    const box = (label, qc, qa, oc, oa, op, color) => {
+      const hasProfit = op !== 0;
+      const margin = oa > 0 ? (op / oa * 100) : 0;
+      const mColor = margin >= 30 ? '#0f9d58' : margin >= 15 ? '#f57c00' : '#e53935';
+      return `
+      <div style="flex:1;min-width:180px;background:#fff;border-radius:8px;padding:10px 14px;border-left:4px solid ${color};box-shadow:0 1px 4px rgba(0,0,0,.07);">
         <div style="font-size:11px;font-weight:700;color:${color};margin-bottom:6px;">${label}</div>
         <div style="display:flex;gap:12px;flex-wrap:wrap;">
           <div><span style="font-size:18px;font-weight:700;color:#333;">${qc}</span><span style="font-size:10px;color:#888;margin-left:3px;">筆報價</span><br><span style="font-size:12px;color:#4285f4;">${fmt(qa)}</span></div>
           <div><span style="font-size:18px;font-weight:700;color:#333;">${oc}</span><span style="font-size:10px;color:#888;margin-left:3px;">筆訂單</span><br><span style="font-size:12px;color:#0f9d58;">${fmt(oa)}</span></div>
+          ${hasProfit ? `<div><span style="font-size:10px;color:#888;">利潤</span><br><span style="font-size:14px;font-weight:700;color:${mColor};">${fmt(op)}</span><span style="font-size:10px;color:${mColor};margin-left:3px;">${margin.toFixed(1)}%</span></div>` : ''}
         </div>
-      </div>`;
+      </div>`; };
 
     const pqs = el('period-quick-stats');
     if (pqs) pqs.innerHTML =
-      box('📅 本週', wCount, wAmt, woCount, woAmt, '#4285f4') +
-      box('🗓️ 本月', mCount, mAmt, moCount, moAmt, '#0f9d58');
+      box('📅 本週', wCount, wAmt, woCount, woAmt, woProfit, '#4285f4') +
+      box('🗓️ 本月', mCount, mAmt, moCount, moAmt, moProfit, '#0f9d58');
   })();
 
   // Group by period
@@ -3455,27 +3468,43 @@ function renderStats() {
     product: o.product || ''
   }));
 
+  const stUsdRmb = state.rates.usdRmb || 7.2453;
   const orderGrouped = {};
   allOrders.forEach(o => {
     const key = getPeriodKey(o.date);
     if (!key) return;
-    if (!orderGrouped[key]) orderGrouped[key] = { amount: 0, count: 0 };
+    const profit = o.rmbAmount > 0 ? o.usdAmount - (o.rmbAmount / stUsdRmb) : 0;
+    if (!orderGrouped[key]) orderGrouped[key] = { amount: 0, count: 0, profit: 0, profitCount: 0 };
     orderGrouped[key].amount += o.usdAmount;
     orderGrouped[key].count += 1;
+    if (o.rmbAmount > 0) { orderGrouped[key].profit += profit; orderGrouped[key].profitCount += 1; }
   });
   const oKeys = Object.keys(orderGrouped).sort();
   const oAmounts = oKeys.map(k => orderGrouped[k].amount);
   const oCounts = oKeys.map(k => orderGrouped[k].count);
+  const oProfits = oKeys.map(k => orderGrouped[k].profit);
 
   const orderTotalUSD = allOrders.reduce((s, o) => s + o.usdAmount, 0);
   const orderTotalCount = allOrders.length;
-  const orderActive = allOrders.filter(o => o.stage !== 'done').length;
-  const orderDone = allOrders.filter(o => o.stage === 'done').length;
+  const orderActive = state.orders.filter(o => o.stage !== 'done').length;
+  const orderDone = state.orders.filter(o => o.stage === 'done').length;
+
+  // Total profit: only orders that have rmbAmount
+  const ordersWithCost = allOrders.filter(o => o.rmbAmount > 0);
+  const orderTotalProfit = ordersWithCost.reduce((s, o) => s + (o.usdAmount - o.rmbAmount / stUsdRmb), 0);
+  const orderAvgMargin = orderTotalUSD > 0 && ordersWithCost.length > 0
+    ? (orderTotalProfit / ordersWithCost.reduce((s,o)=>s+o.usdAmount,0) * 100) : 0;
+
+  const profitColor = orderAvgMargin >= 30 ? '#0f9d58' : orderAvgMargin >= 15 ? '#f57c00' : '#e53935';
 
   el('order-stats-summary').innerHTML = `
     <div class="dash-stat money"><div class="ds-value">$${orderTotalUSD > 0 ? Math.round(orderTotalUSD).toLocaleString() : '0'}</div><div class="ds-label">訂單總金額 (USD)</div></div>
     <div class="dash-stat active"><div class="ds-value">${orderTotalCount}</div><div class="ds-label">訂單總數</div></div>
-    <div class="dash-stat today"><div class="ds-value">${orderActive}</div><div class="ds-label">進行中訂單</div></div>
+    ${ordersWithCost.length > 0 ? `
+    <div class="dash-stat" style="border-top:3px solid ${profitColor};">
+      <div class="ds-value" style="color:${profitColor};">$${Math.round(orderTotalProfit).toLocaleString()}</div>
+      <div class="ds-label">總利潤 (USD)<br><span style="font-size:10px;color:#aaa;">平均 ${orderAvgMargin.toFixed(1)}% (${ordersWithCost.length}/${orderTotalCount} 筆有成本)</span></div>
+    </div>` : `<div class="dash-stat today"><div class="ds-value">${orderActive}</div><div class="ds-label">進行中訂單</div></div>`}
     <div class="dash-stat"><div class="ds-value">${orderDone}</div><div class="ds-label">已完成訂單</div></div>
   `;
 
@@ -3519,6 +3548,12 @@ function renderStats() {
   drawBarChart('chart-order-revenue', oKeys, oAmounts, '#0f9d58', 'US$');
   // Draw bar chart - Order Count
   drawBarChart('chart-order-count', oKeys, oCounts, '#0f9d58', '筆');
+  // Draw bar chart - Order Profit (only periods with cost data)
+  const oProfitKeys = oKeys.filter(k => orderGrouped[k].profitCount > 0);
+  drawDualBarChart('chart-order-profit', oProfitKeys,
+    oProfitKeys.map(k => orderGrouped[k].amount),
+    oProfitKeys.map(k => orderGrouped[k].profit),
+    '#0f9d58', '#e53935', '營收', '利潤');
 
   // Quote: Country pie chart — ranked by QUOTE COUNT (not amount)
   const countryMap = {};
