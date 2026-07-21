@@ -2072,16 +2072,20 @@ function renderCRM() {
                 <div class="quote-version-header">
                   <span class="quote-v-badge">V${vNum}</span>
                   <span class="quote-v-date">${q.date}</span>
-                  ${hasCost ? `<span style="background:${profitColor};color:white;font-size:10px;font-weight:700;padding:1px 8px;border-radius:10px;">利潤 ${qMargin.toFixed(1)}%</span>` : ''}
+                  ${hasCost
+                    ? `<span style="background:${profitColor};color:white;font-size:10px;font-weight:700;padding:1px 8px;border-radius:10px;">利潤 ${qMargin.toFixed(1)}%</span>`
+                    : `<span style="font-size:10px;color:#bbb;">利潤：— (需填 RMB 成本/個)</span>`}
                 </div>
                 <table class="quote-v-table">
                   <thead><tr><th>產品</th><th style="text-align:right;">數量</th><th style="text-align:right;">單價</th><th style="text-align:right;">小計</th></tr></thead>
                   <tbody>${prodRows}</tbody>
                 </table>
-                ${hasCost ? `<div style="display:flex;gap:12px;flex-wrap:wrap;font-size:11px;padding:4px 0;border-top:1px solid #f0f0f0;margin-top:4px;">
-                  <span style="color:#888;">成本: ¥${qCostRMB.toFixed(0)} (US$${qCostUSD.toFixed(0)})</span>
-                  <span style="color:${profitColor};font-weight:600;">利潤: US$${qProfit.toFixed(0)}</span>
-                </div>` : ''}
+                <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:11px;padding:4px 0;border-top:1px solid #f0f0f0;margin-top:4px;">
+                  ${hasCost
+                    ? `<span style="color:#888;">成本: ¥${qCostRMB.toFixed(0)} (US$${qCostUSD.toFixed(0)})</span>
+                       <span style="color:${profitColor};font-weight:600;">利潤: US$${qProfit.toFixed(0)}</span>`
+                    : `<span style="color:#bbb;">在報價頁填入「RMB 成本/個」後可查看利潤</span>`}
+                </div>
                 ${q.rates ? `<div style="display:flex;gap:8px;flex-wrap:wrap;font-size:10px;color:#aaa;padding:2px 0;">
                   <span>💱 USD/TWD: ${q.rates.usdTwd}</span>
                   <span>RMB/TWD: ${q.rates.rmbTwd}</span>
@@ -2800,11 +2804,15 @@ function renderOrders() {
         ${o.shippingFee > 0 ? `<span><strong>運費:</strong> US$${Number(o.shippingFee).toFixed(0)}</span>` : ''}
         ${(o.totalUSD > 0) ? `<span style="font-weight:700;color:#0f9d58;"><strong>合計:</strong> US$${Number(o.totalUSD).toFixed(0)}</span>` : ''}
       </div>` : ''}
-      ${o.rmbAmount > 0 ? `<div class="oc-field" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-        <span><strong>工廠金額:</strong> ¥${o.rmbAmount}</span>
-        ${oMargin !== null ? `<span style="background:${oMarginColor};color:white;font-size:11px;font-weight:700;padding:1px 9px;border-radius:10px;">利潤 ${oMargin.toFixed(1)}%</span>
-        <span style="font-size:11px;color:${oMarginColor};font-weight:600;">US$${oProfit.toFixed(0)}</span>` : ''}
-      </div>` : ''}
+      <div class="oc-field" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        ${o.rmbAmount > 0
+          ? `<span><strong>工廠金額:</strong> ¥${o.rmbAmount}</span>
+             ${oMargin !== null
+               ? `<span style="background:${oMarginColor};color:white;font-size:11px;font-weight:700;padding:1px 9px;border-radius:10px;">利潤 ${oMargin.toFixed(1)}%</span>
+                  <span style="font-size:11px;color:${oMarginColor};font-weight:600;">US$${oProfit.toFixed(0)}</span>`
+               : ''}`
+          : `<span style="font-size:11px;color:#bbb;">💰 利潤：—（編輯訂單填入工廠金額後顯示）</span>`}
+      </div>
       <div class="oc-field" style="display:flex;gap:12px;flex-wrap:wrap;">
         ${(o.suppliers && o.suppliers.length > 0) ? o.suppliers.map((s,i) => `<span><strong>廠商${o.suppliers.length>1?i+1:''}:</strong> ${escapeHtml(s)}</span>`).join('') : o.supplier ? `<span><strong>廠商:</strong> ${escapeHtml(o.supplier)}</span>` : ''}
         ${o.forwarder ? `<span><strong>代運:</strong> ${escapeHtml(o.forwarder)}</span>` : ''}
@@ -3397,16 +3405,17 @@ function renderStats() {
 
     const fmt = n => n >= 1000 ? '$' + Math.round(n/1000) + 'k' : '$' + Math.round(n);
     const box = (label, qc, qa, oc, oa, op, color) => {
-      const hasProfit = op !== 0;
-      const margin = oa > 0 ? (op / oa * 100) : 0;
-      const mColor = margin >= 30 ? '#0f9d58' : margin >= 15 ? '#f57c00' : '#e53935';
+      const margin = oa > 0 && op !== 0 ? (op / oa * 100) : null;
+      const mColor = margin === null ? '#bbb' : margin >= 30 ? '#0f9d58' : margin >= 15 ? '#f57c00' : '#e53935';
+      const profitStr = margin === null ? '—' : fmt(op);
+      const marginStr = margin === null ? '<span style="font-size:9px;color:#bbb;">填工廠金額後顯示</span>' : `<span style="font-size:10px;color:${mColor};margin-left:3px;">${margin.toFixed(1)}%</span>`;
       return `
       <div style="flex:1;min-width:180px;background:#fff;border-radius:8px;padding:10px 14px;border-left:4px solid ${color};box-shadow:0 1px 4px rgba(0,0,0,.07);">
         <div style="font-size:11px;font-weight:700;color:${color};margin-bottom:6px;">${label}</div>
         <div style="display:flex;gap:12px;flex-wrap:wrap;">
           <div><span style="font-size:18px;font-weight:700;color:#333;">${qc}</span><span style="font-size:10px;color:#888;margin-left:3px;">筆報價</span><br><span style="font-size:12px;color:#4285f4;">${fmt(qa)}</span></div>
           <div><span style="font-size:18px;font-weight:700;color:#333;">${oc}</span><span style="font-size:10px;color:#888;margin-left:3px;">筆訂單</span><br><span style="font-size:12px;color:#0f9d58;">${fmt(oa)}</span></div>
-          ${hasProfit ? `<div><span style="font-size:10px;color:#888;">利潤</span><br><span style="font-size:14px;font-weight:700;color:${mColor};">${fmt(op)}</span><span style="font-size:10px;color:${mColor};margin-left:3px;">${margin.toFixed(1)}%</span></div>` : ''}
+          <div><span style="font-size:10px;color:#888;">💰 利潤</span><br><span style="font-size:14px;font-weight:700;color:${mColor};">${profitStr}</span>${marginStr}</div>
         </div>
       </div>`; };
 
@@ -3500,11 +3509,13 @@ function renderStats() {
   el('order-stats-summary').innerHTML = `
     <div class="dash-stat money"><div class="ds-value">$${orderTotalUSD > 0 ? Math.round(orderTotalUSD).toLocaleString() : '0'}</div><div class="ds-label">訂單總金額 (USD)</div></div>
     <div class="dash-stat active"><div class="ds-value">${orderTotalCount}</div><div class="ds-label">訂單總數</div></div>
-    ${ordersWithCost.length > 0 ? `
-    <div class="dash-stat" style="border-top:3px solid ${profitColor};">
-      <div class="ds-value" style="color:${profitColor};">$${Math.round(orderTotalProfit).toLocaleString()}</div>
-      <div class="ds-label">總利潤 (USD)<br><span style="font-size:10px;color:#aaa;">平均 ${orderAvgMargin.toFixed(1)}% (${ordersWithCost.length}/${orderTotalCount} 筆有成本)</span></div>
-    </div>` : `<div class="dash-stat today"><div class="ds-value">${orderActive}</div><div class="ds-label">進行中訂單</div></div>`}
+    <div class="dash-stat" style="border-top:3px solid ${ordersWithCost.length > 0 ? profitColor : '#bbb'};">
+      ${ordersWithCost.length > 0
+        ? `<div class="ds-value" style="color:${profitColor};">$${Math.round(orderTotalProfit).toLocaleString()}</div>
+           <div class="ds-label">總利潤 (USD)<br><span style="font-size:10px;color:#aaa;">平均 ${orderAvgMargin.toFixed(1)}%・${ordersWithCost.length}/${orderTotalCount} 筆有成本</span></div>`
+        : `<div class="ds-value" style="color:#bbb;">—</div>
+           <div class="ds-label">總利潤 (USD)<br><span style="font-size:10px;color:#bbb;">訂單填入「工廠金額(RMB)」後顯示</span></div>`}
+    </div>
     <div class="dash-stat"><div class="ds-value">${orderDone}</div><div class="ds-label">已完成訂單</div></div>
   `;
 
