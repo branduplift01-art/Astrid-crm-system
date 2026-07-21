@@ -1756,11 +1756,20 @@ async function saveQuoteAndCRM() {
   const shipping = parseFloat(el('shippingUSD').value) || 0;
   totalAmount += totalLogo + shipping;
 
+  const totalCostRMB = products.reduce((s, p) => s + (p.rmbCost || 0) * p.qty, 0);
+  const usdRmb = state.rates.usdRmb || 7.2453;
+  const totalCostUSD = totalCostRMB / usdRmb;
+  const profitUSD = totalAmount - totalCostUSD;
+  const profitPct = totalAmount > 0 ? (profitUSD / totalAmount * 100) : 0;
+
   const quoteRecord = {
     id: Date.now(),
     date: new Date().toISOString().slice(0, 10),
     products, totalLogo, shipping, totalAmount, quoteText,
     suppliers: getQuoteSuppliers(),
+    costRMB: totalCostRMB,
+    profitUSD,
+    profitPct,
     rates: {
       usdTwd: state.rates.usdTwd,
       rmbTwd: state.rates.rmbTwd,
@@ -2044,16 +2053,31 @@ function renderCRM() {
               const prodRows = (q.products||[]).map(p =>
                 `<tr><td>${escapeHtml(p.name)}</td><td style="text-align:right;">${p.qty}</td><td style="text-align:right;">$${Number(p.unitPrice||0).toFixed(2)}</td><td style="text-align:right;font-weight:600;">$${(p.qty*(p.unitPrice||0)).toFixed(0)}</td></tr>`
               ).join('');
+              // Compute profit (use saved values or re-derive from rmbCost per product)
+              const qUsdRmb = (q.rates && q.rates.usdRmb) || state.rates.usdRmb || 7.2453;
+              const qCostRMB = q.costRMB != null ? q.costRMB
+                : (q.products||[]).reduce((s,p) => s + (p.rmbCost||0)*p.qty, 0);
+              const qRev = q.totalAmount || 0;
+              const qCostUSD = qCostRMB / qUsdRmb;
+              const qProfit = qRev - qCostUSD;
+              const qMargin = qRev > 0 ? (qProfit / qRev * 100) : 0;
+              const hasCost = qCostRMB > 0;
+              const profitColor = qMargin >= 30 ? '#0f9d58' : qMargin >= 15 ? '#f57c00' : '#e53935';
               return `<div class="quote-version">
                 <div class="quote-version-header">
                   <span class="quote-v-badge">V${vNum}</span>
                   <span class="quote-v-date">${q.date}</span>
+                  ${hasCost ? `<span style="background:${profitColor};color:white;font-size:10px;font-weight:700;padding:1px 8px;border-radius:10px;">利潤 ${qMargin.toFixed(1)}%</span>` : ''}
                 </div>
                 <table class="quote-v-table">
                   <thead><tr><th>產品</th><th style="text-align:right;">數量</th><th style="text-align:right;">單價</th><th style="text-align:right;">小計</th></tr></thead>
                   <tbody>${prodRows}</tbody>
                 </table>
-                ${q.rates ? `<div style="display:flex;gap:8px;flex-wrap:wrap;font-size:10px;color:#888;padding:3px 0;border-top:1px solid #f0f0f0;margin-top:4px;">
+                ${hasCost ? `<div style="display:flex;gap:12px;flex-wrap:wrap;font-size:11px;padding:4px 0;border-top:1px solid #f0f0f0;margin-top:4px;">
+                  <span style="color:#888;">成本: ¥${qCostRMB.toFixed(0)} (US$${qCostUSD.toFixed(0)})</span>
+                  <span style="color:${profitColor};font-weight:600;">利潤: US$${qProfit.toFixed(0)}</span>
+                </div>` : ''}
+                ${q.rates ? `<div style="display:flex;gap:8px;flex-wrap:wrap;font-size:10px;color:#aaa;padding:2px 0;">
                   <span>💱 USD/TWD: ${q.rates.usdTwd}</span>
                   <span>RMB/TWD: ${q.rates.rmbTwd}</span>
                   <span>USD/RMB: ${q.rates.usdRmb}</span>
@@ -2738,6 +2762,14 @@ function renderOrders() {
     }
     const ofuDiff = ofu ? Math.round((new Date(ofu) - new Date(today)) / 86400000) : null;
     const ofuText = ofu ? (ofuDiff < 0 ? `⚠️ 逾期 ${Math.abs(ofuDiff)} 天` : ofuDiff === 0 ? '📅 今天追蹤' : `⏰ ${ofuDiff} 天後`) : '';
+    // Profit calculation
+    const oRev = o.totalUSD || o.usdAmount || 0;
+    const oCostRMB = o.rmbAmount || 0;
+    const oUsdRmb = state.rates.usdRmb || 7.2453;
+    const oCostUSD = oCostRMB / oUsdRmb;
+    const oProfit = oRev > 0 && oCostRMB > 0 ? oRev - oCostUSD : null;
+    const oMargin = oProfit !== null && oRev > 0 ? (oProfit / oRev * 100) : null;
+    const oMarginColor = oMargin === null ? '' : oMargin >= 30 ? '#0f9d58' : oMargin >= 15 ? '#f57c00' : '#e53935';
     return `
     <div class="order-card" style="${orderCardStyle}">
       <div class="oc-header">
@@ -2763,7 +2795,11 @@ function renderOrders() {
         ${o.shippingFee > 0 ? `<span><strong>運費:</strong> US$${Number(o.shippingFee).toFixed(0)}</span>` : ''}
         ${(o.totalUSD > 0) ? `<span style="font-weight:700;color:#0f9d58;"><strong>合計:</strong> US$${Number(o.totalUSD).toFixed(0)}</span>` : ''}
       </div>` : ''}
-      ${o.rmbAmount > 0 ? `<div class="oc-field"><strong>工廠金額:</strong> ¥${o.rmbAmount}</div>` : ''}
+      ${o.rmbAmount > 0 ? `<div class="oc-field" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        <span><strong>工廠金額:</strong> ¥${o.rmbAmount}</span>
+        ${oMargin !== null ? `<span style="background:${oMarginColor};color:white;font-size:11px;font-weight:700;padding:1px 9px;border-radius:10px;">利潤 ${oMargin.toFixed(1)}%</span>
+        <span style="font-size:11px;color:${oMarginColor};font-weight:600;">US$${oProfit.toFixed(0)}</span>` : ''}
+      </div>` : ''}
       <div class="oc-field" style="display:flex;gap:12px;flex-wrap:wrap;">
         ${(o.suppliers && o.suppliers.length > 0) ? o.suppliers.map((s,i) => `<span><strong>廠商${o.suppliers.length>1?i+1:''}:</strong> ${escapeHtml(s)}</span>`).join('') : o.supplier ? `<span><strong>廠商:</strong> ${escapeHtml(o.supplier)}</span>` : ''}
         ${o.forwarder ? `<span><strong>代運:</strong> ${escapeHtml(o.forwarder)}</span>` : ''}
