@@ -822,12 +822,18 @@ async function dbSave(key, value) {
   }
 }
 
+let _dbLoadFailed = false;
 async function dbLoad(key) {
   try {
-    const { data } = await sb.from('app_data')
+    const { data, error } = await sb.from('app_data')
       .select('value').eq('key', key).maybeSingle();
+    if (error) throw error;
     return data?.value ?? null;
-  } catch(e) { return null; }
+  } catch(e) {
+    console.error('dbLoad error:', key, e);
+    _dbLoadFailed = true;
+    return null;
+  }
 }
 
 // ============================================================
@@ -1280,6 +1286,16 @@ async function loadAllData() {
   // Tools
   const tools = await dbLoad('tools');
   if (tools) state.toolsData = tools;
+
+  // Warn if any load failed (Supabase paused, quota, or network issue)
+  if (_dbLoadFailed) {
+    setTimeout(() => {
+      const banner = document.createElement('div');
+      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#d32f2f;color:#fff;padding:12px 16px;font-size:13px;text-align:center;font-weight:600;';
+      banner.innerHTML = '⚠️ 資料庫連線失敗，資料可能為空白。請確認 Supabase 專案是否已暫停，或重新整理頁面。<button onclick="this.parentNode.remove()" style="margin-left:16px;background:rgba(255,255,255,.25);border:none;color:#fff;padding:4px 10px;border-radius:4px;cursor:pointer;">✕</button>';
+      document.body.prepend(banner);
+    }, 500);
+  }
 }
 
 // ============================================================
