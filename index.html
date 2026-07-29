@@ -458,6 +458,7 @@ body { font-family: 'Segoe UI', -apple-system, sans-serif; background: #f0f2f5; 
       <button class="crm-subtab active" onclick="switchCRMSub('customers')">客戶報價總覽</button>
       <button class="crm-subtab" onclick="switchCRMSub('orders')">訂單追蹤</button>
       <button class="crm-subtab" onclick="switchCRMSub('stats')">統計報表</button>
+      <button class="crm-subtab" onclick="switchCRMSub('profiles')">👤 客戶資料庫</button>
       <button class="crm-subtab" onclick="switchCRMSub('tools')">業務工具</button>
       <button class="crm-subtab" id="trash-tab-btn" onclick="switchCRMSub('trash')" style="margin-left:auto;color:#e53935;">🗑️ 回收桶</button>
     </div>
@@ -577,6 +578,9 @@ body { font-family: 'Segoe UI', -apple-system, sans-serif; background: #f0f2f5; 
         </div>
       </div>
     </div>
+
+    <!-- Sub-panel: 客戶資料庫 -->
+    <div id="crm-sub-profiles" class="crm-subpanel"></div>
 
     <!-- Sub-panel: 業務工具 -->
     <div id="crm-sub-tools" class="crm-subpanel">
@@ -1027,6 +1031,22 @@ const ORDER_STAGES = [
 
 const ACCOUNTS = ['主帳','IRIS帳','TINA帳','ElenaLin帳'];
 
+const REGIONS = [
+  { label:'大洋洲', countries:['Australia','New Zealand'] },
+  { label:'北美',   countries:['USA','Canada','Mexico'] },
+  { label:'歐洲',   countries:['UK','France','Germany','Netherlands','Sweden','Switzerland','Spain','Italy','Denmark','Norway','Finland','Belgium','Austria','Ireland','Poland','Portugal'] },
+  { label:'亞洲',   countries:['Japan','Korea','Singapore','Hong Kong','Taiwan','China','Thailand','Malaysia','Vietnam','Indonesia','Philippines','India'] },
+  { label:'中東',   countries:['UAE','Saudi Arabia','Israel','Qatar','Kuwait','Bahrain'] },
+  { label:'南美',   countries:['Brazil','Argentina','Chile','Colombia'] },
+];
+function getRegion(country) {
+  if (!country) return '其他';
+  for (const r of REGIONS) {
+    if (r.countries.some(c => c.toLowerCase() === country.toLowerCase())) return r.label;
+  }
+  return '其他';
+}
+
 const DEFAULT_TAGS = ['復購客戶','高潛力新客','重要長期客戶','電商客戶','小客戶','待催付款','中盤商','潛在續購客戶','穩定小單客戶','服裝連鎖品牌','準訂單客戶','潛在新產品客戶'];
 
 const DEFAULT_SUPPLIERS = ['廣西 金億達','廣東 良田','廣東 錦秀','浙江 嘉星','浙江 超防电子科技','廣西 耀翔','浙江武義縣 宇丰电子科技','溫州 福然包装','浙江 曙光','浙江 恒耀改名涌乐电子','廣東 銘鑫','廣東 名友','浙江 振華塑料','廣東 金滨金属制品','廣東 优磁管理技术','浙江 数标金属工艺品厂','廣東 丰和实业','浙江 锦晴贸易','福建 馨嘉家具','廣東 华唐艺品五金工艺厂','河北霸州市 雨萱格塑料制品','廣東 珠疆'];
@@ -1135,7 +1155,8 @@ let state = {
   showOrdered: false,
   showOldDone: false,
   trash: { customers: [], orders: [] },
-  statsMonthOffset: 0
+  statsMonthOffset: 0,
+  profileFilter: { search: '', region: '', importance: 0, productType: '' }
 };
 
 // ============================================================
@@ -2452,6 +2473,250 @@ function showCustomerHistory(custId) {
     ${orderSection}
   `;
   el('history-modal').classList.add('show');
+}
+
+// ============================================================
+// 客戶資料庫 — 列表 + 完整歷程
+// ============================================================
+function renderCustomerProfiles() {
+  const pf = state.profileFilter;
+  const allTypes = [...new Set(state.customers.map(c => c.productType).filter(Boolean))].sort();
+
+  let custs = state.customers.filter(c => !c.noTracking); // exclude archived
+  if (pf.search) {
+    const s = pf.search.toLowerCase();
+    custs = custs.filter(c =>
+      c.name.toLowerCase().includes(s) ||
+      (c.country || '').toLowerCase().includes(s) ||
+      (c.productType || '').toLowerCase().includes(s) ||
+      (c.email || '').toLowerCase().includes(s)
+    );
+  }
+  if (pf.region)      custs = custs.filter(c => getRegion(c.country) === pf.region);
+  if (pf.importance)  custs = custs.filter(c => (c.importance || 3) >= pf.importance);
+  if (pf.productType) custs = custs.filter(c => c.productType === pf.productType);
+
+  // Group by region, sort by importance desc within each group
+  const groups = {};
+  custs.forEach(c => {
+    const r = getRegion(c.country);
+    if (!groups[r]) groups[r] = [];
+    groups[r].push(c);
+  });
+  const regionOrder = [...REGIONS.map(r => r.label), '其他'];
+  const sortedRegions = Object.keys(groups).sort((a, b) => regionOrder.indexOf(a) - regionOrder.indexOf(b));
+  Object.values(groups).forEach(g => g.sort((a, b) => (b.importance || 3) - (a.importance || 3)));
+
+  // Region filter buttons — only show regions that have customers
+  const allRegionLabels = [...REGIONS.map(r => r.label), '其他'];
+  const usedRegions = allRegionLabels.filter(r => state.customers.some(c => getRegion(c.country) === r));
+
+  const panel = el('crm-sub-profiles');
+  panel.innerHTML = `<div class="card">
+    <h2 style="margin-bottom:14px;"><span class="icon" style="background:#e8eaf6;">👤</span> 客戶資料庫</h2>
+
+    <!-- 搜尋 + 產品類型 -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+      <input id="profile-search" value="${escapeAttr(pf.search)}"
+        placeholder="搜尋客戶名稱、國家、產品..."
+        style="flex:2;min-width:200px;padding:8px 12px;border:1px solid #e0e0e0;border-radius:8px;font-size:13px;"
+        oninput="state.profileFilter.search=this.value;renderCustomerProfiles()">
+      <select onchange="state.profileFilter.productType=this.value;renderCustomerProfiles()"
+        style="flex:1;min-width:140px;padding:8px;border:1px solid #e0e0e0;border-radius:8px;font-size:13px;">
+        <option value="">全部產品類型</option>
+        ${allTypes.map(t => `<option value="${escapeAttr(t)}" ${pf.productType === t ? 'selected' : ''}>${escapeHtml(t)}</option>`).join('')}
+      </select>
+    </div>
+
+    <!-- 區域篩選 -->
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+      <span style="font-size:11px;color:#999;align-self:center;">區域:</span>
+      <button class="crm-filter-btn ${!pf.region ? 'active' : ''}"
+        onclick="state.profileFilter.region='';renderCustomerProfiles()">全部</button>
+      ${usedRegions.map(r => {
+        const cnt = state.customers.filter(c => !c.noTracking && getRegion(c.country) === r).length;
+        return `<button class="crm-filter-btn ${pf.region === r ? 'active' : ''}"
+          onclick="state.profileFilter.region='${escapeAttr(r)}';renderCustomerProfiles()">${r} <span class="badge">${cnt}</span></button>`;
+      }).join('')}
+    </div>
+
+    <!-- 重要性篩選 -->
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;">
+      <span style="font-size:11px;color:#999;align-self:center;">重要性:</span>
+      <button class="crm-filter-btn ${!pf.importance ? 'active' : ''}"
+        onclick="state.profileFilter.importance=0;renderCustomerProfiles()">全部</button>
+      ${[5,4,3,2,1].map(n => `<button class="crm-filter-btn ${pf.importance === n ? 'active' : ''}"
+        onclick="state.profileFilter.importance=${n};renderCustomerProfiles()">${'★'.repeat(n)} ${n}星以上</button>`).join('')}
+    </div>
+
+    <!-- 客戶數量 -->
+    <div style="font-size:12px;color:#888;margin-bottom:14px;">共 <strong>${custs.length}</strong> 位客戶</div>
+
+    <!-- 依區域分組顯示 -->
+    ${sortedRegions.length === 0
+      ? '<div style="text-align:center;color:#bbb;padding:40px;">找不到符合條件的客戶</div>'
+      : sortedRegions.map(region => `
+      <div style="margin-bottom:24px;">
+        <div style="font-size:13px;font-weight:700;color:#1a1a2e;border-bottom:2px solid #e3f2fd;padding-bottom:6px;margin-bottom:12px;">
+          ${region} <span style="font-weight:400;font-size:11px;color:#888;">${groups[region].length} 位</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;">
+          ${groups[region].map(c => {
+            const orders = state.orders.filter(o => String(o.customerId) === String(c.id));
+            const totalQ = (c.quotes || []).reduce((s, q) => s + (q.totalAmount || 0), 0);
+            const totalO = orders.reduce((s, o) => s + (o.totalUSD || o.usdAmount || 0), 0);
+            const imp = c.importance || 3;
+            const stars = '★'.repeat(imp) + '<span style="color:#ddd;">★</span>'.repeat(5 - imp);
+            return `<div onclick="showFullProfile(${c.id})"
+              style="border:1px solid #e8e8e8;border-radius:10px;padding:12px 14px;cursor:pointer;transition:all 0.2s;"
+              onmouseover="this.style.boxShadow='0 3px 12px rgba(0,0,0,.1)';this.style.borderColor='#4285f4'"
+              onmouseout="this.style.boxShadow='';this.style.borderColor='#e8e8e8'">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px;">
+                <span style="font-weight:700;font-size:13px;line-height:1.3;">${escapeHtml(c.name)}</span>
+                <span style="color:#f9a825;font-size:12px;white-space:nowrap;margin-left:6px;">${stars}</span>
+              </div>
+              <div style="font-size:11px;color:#888;margin-bottom:7px;">
+                ${escapeHtml(c.country || '—')}${c.productType ? ` · ${escapeHtml(c.productType)}` : ''}
+              </div>
+              <div style="display:flex;gap:10px;font-size:11px;font-weight:600;">
+                ${totalQ > 0 ? `<span style="color:#4285f4;">📋 $${Math.round(totalQ).toLocaleString()}</span>` : '<span style="color:#ccc;">尚無報價</span>'}
+                ${totalO > 0 ? `<span style="color:#0f9d58;">✅ $${Math.round(totalO).toLocaleString()}</span>` : ''}
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`).join('')}
+  </div>`;
+}
+
+function showFullProfile(custId) {
+  const c = state.customers.find(x => String(x.id) === String(custId));
+  if (!c) return;
+  const orders  = state.orders.filter(o => String(o.customerId) === String(custId));
+  const quotes  = c.quotes || [];
+  const notes   = c.notes  || [];
+
+  // Merge into unified timeline
+  const timeline = [];
+  quotes.forEach((q, qi) => timeline.push({ type:'quote', date: q.date || '', q, vNum: quotes.length - qi }));
+  orders.forEach(o  => timeline.push({ type:'order', date: o.createdAt || o.orderDate || '', o }));
+  notes.forEach(n   => timeline.push({ type:'note',  date: n.date || '', n }));
+  timeline.sort((a, b) => b.date.localeCompare(a.date));
+
+  // Stats
+  const totalQ  = quotes.reduce((s, q) => s + (q.totalAmount || 0), 0);
+  const totalO  = orders.reduce((s, o) => s + (o.totalUSD || o.usdAmount || 0), 0);
+  const usdRmb  = state.rates.usdRmb || 7.2453;
+  const totalProfit = orders.reduce((s, o) => o.rmbAmount > 0 ? s + (o.totalUSD || o.usdAmount || 0) - o.rmbAmount / usdRmb : s, 0);
+  const margin  = totalO > 0 && orders.some(o => o.rmbAmount > 0) ? totalProfit / totalO * 100 : null;
+  const mColor  = margin === null ? '#bbb' : margin >= 30 ? '#0f9d58' : margin >= 15 ? '#f57c00' : '#e53935';
+
+  const imp     = c.importance || 3;
+  const stars   = '★'.repeat(imp) + '☆'.repeat(5 - imp);
+  const region  = getRegion(c.country);
+
+  const timelineHTML = timeline.length === 0
+    ? '<div style="color:#bbb;text-align:center;padding:24px;">尚無任何紀錄</div>'
+    : timeline.map(item => {
+      if (item.type === 'quote') {
+        const q = item.q;
+        const profitStr = q.profitUSD != null ? `<span style="font-size:10px;color:#888;margin-left:8px;">利潤 US$${q.profitUSD.toFixed(0)} (${(q.profitPct||0).toFixed(0)}%)</span>` : '';
+        return `<div style="display:flex;gap:10px;margin-bottom:10px;align-items:flex-start;">
+          <div style="width:30px;height:30px;background:#e3f2fd;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;margin-top:2px;">📋</div>
+          <div style="flex:1;border:1px solid #e0e0e0;border-radius:8px;padding:8px 12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:4px;">
+              <span style="font-size:12px;font-weight:700;background:#1a1a2e;color:white;padding:1px 8px;border-radius:10px;">V${item.vNum}</span>
+              <span style="font-size:11px;color:#888;">${q.date}</span>
+              <span style="font-weight:700;color:#4285f4;">US$${Number(q.totalAmount || 0).toFixed(0)}</span>
+              ${profitStr}
+            </div>
+            <div style="font-size:11px;color:#666;">${(q.products || []).map(p => `${escapeHtml(p.name)} ×${p.qty}`).join(' · ')}</div>
+          </div>
+        </div>`;
+      } else if (item.type === 'order') {
+        const o = item.o;
+        const stage = ORDER_STAGES.find(s => s.value === o.stage) || ORDER_STAGES[0];
+        return `<div style="display:flex;gap:10px;margin-bottom:10px;align-items:flex-start;">
+          <div style="width:30px;height:30px;background:#e8f5e9;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;margin-top:2px;">✅</div>
+          <div style="flex:1;border:1px solid #c8e6c9;border-radius:8px;padding:8px 12px;background:#f9fff9;">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:4px;">
+              <span style="font-size:12px;font-weight:700;">訂單</span>
+              <span style="font-size:10px;background:#e8f5e9;color:#2e7d32;padding:1px 7px;border-radius:10px;">${stage.label}</span>
+              <span style="font-size:11px;color:#888;">${o.createdAt || '—'}</span>
+              <span style="font-weight:700;color:#0f9d58;">US$${Number(o.totalUSD || o.usdAmount || 0).toFixed(0)}</span>
+            </div>
+            <div style="font-size:11px;color:#666;">${escapeHtml(o.product || '')}</div>
+          </div>
+        </div>`;
+      } else {
+        const n = item.n;
+        const ic = n.type === 'quote' ? '🟢' : n.type === 'status' ? '🔵' : '💬';
+        return `<div style="display:flex;gap:10px;margin-bottom:8px;align-items:flex-start;">
+          <div style="width:30px;height:30px;background:#f5f5f5;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;margin-top:2px;">${ic}</div>
+          <div style="flex:1;padding:6px 0;border-bottom:1px solid #f5f5f5;">
+            <span style="font-size:10px;color:#aaa;">${n.date}</span>
+            <span style="font-size:12px;color:#444;margin-left:8px;">${escapeHtml(n.text || '')}</span>
+          </div>
+        </div>`;
+      }
+    }).join('');
+
+  el('crm-sub-profiles').innerHTML = `<div class="card">
+    <button onclick="renderCustomerProfiles()"
+      style="background:none;border:none;font-size:13px;color:#4285f4;cursor:pointer;padding:0;margin-bottom:14px;">
+      ← 返回客戶列表
+    </button>
+
+    <!-- 客戶標題 -->
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
+      <div>
+        <h2 style="font-size:20px;font-weight:700;margin-bottom:6px;">${escapeHtml(c.name)}</h2>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <span style="background:#e3f2fd;color:#1565c0;font-size:12px;font-weight:700;padding:2px 10px;border-radius:10px;">${region}</span>
+          <span style="font-size:13px;color:#555;">${escapeHtml(c.country || '—')}</span>
+          <span style="color:#f9a825;font-size:14px;letter-spacing:1px;">${stars}</span>
+          ${c.productType ? `<span style="background:#fff8e1;color:#e65100;font-size:11px;font-weight:600;padding:2px 9px;border-radius:10px;">📦 ${escapeHtml(c.productType)}</span>` : ''}
+        </div>
+        <div style="margin-top:8px;font-size:12px;color:#888;line-height:1.8;">
+          ${c.phone ? `📞 ${escapeHtml(c.phone)}<br>` : ''}
+          ${c.email ? `✉️ ${escapeHtml(c.email)}<br>` : ''}
+          ${c.address ? `📍 ${escapeHtml(c.address)}` : ''}
+        </div>
+      </div>
+      <button onclick="showCustomerHistory(${c.id})" style="background:#1a1a2e;color:white;border:none;border-radius:8px;padding:8px 16px;font-size:12px;cursor:pointer;white-space:nowrap;">
+        ✏️ 編輯客戶資料
+      </button>
+    </div>
+
+    <!-- 統計摘要 -->
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;">
+      <div style="flex:1;min-width:90px;background:#e3f2fd;border-radius:10px;padding:10px 14px;text-align:center;">
+        <div style="font-size:20px;font-weight:700;color:#1565c0;">${quotes.length}</div>
+        <div style="font-size:10px;color:#888;margin:2px 0;">報價次數</div>
+        <div style="font-size:12px;font-weight:700;color:#4285f4;">$${Math.round(totalQ).toLocaleString()}</div>
+      </div>
+      <div style="flex:1;min-width:90px;background:#e8f5e9;border-radius:10px;padding:10px 14px;text-align:center;">
+        <div style="font-size:20px;font-weight:700;color:#2e7d32;">${orders.length}</div>
+        <div style="font-size:10px;color:#888;margin:2px 0;">成交筆數</div>
+        <div style="font-size:12px;font-weight:700;color:#0f9d58;">$${Math.round(totalO).toLocaleString()}</div>
+      </div>
+      ${margin !== null ? `<div style="flex:1;min-width:90px;background:${margin>=30?'#e8f5e9':margin>=15?'#fff8e1':'#fce4ec'};border-radius:10px;padding:10px 14px;text-align:center;">
+        <div style="font-size:20px;font-weight:700;color:${mColor};">${margin.toFixed(0)}%</div>
+        <div style="font-size:10px;color:#888;margin:2px 0;">利潤率</div>
+        <div style="font-size:12px;font-weight:700;color:${mColor};">$${Math.round(totalProfit).toLocaleString()}</div>
+      </div>` : ''}
+      ${(c.tags||[]).length > 0 ? `<div style="flex:2;min-width:120px;background:#f5f5f5;border-radius:10px;padding:10px 14px;">
+        <div style="font-size:10px;color:#888;margin-bottom:5px;">標籤</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;">${(c.tags||[]).map(t => `<span style="background:#e8eaf6;color:#3949ab;font-size:11px;padding:2px 8px;border-radius:10px;">${escapeHtml(t)}</span>`).join('')}</div>
+      </div>` : ''}
+    </div>
+
+    <!-- 時間軸 -->
+    <h4 style="font-size:13px;font-weight:700;margin-bottom:12px;color:#1a1a2e;border-bottom:1px solid #f0f0f0;padding-bottom:6px;">
+      🕐 互動時間軸 <span style="font-weight:400;font-size:11px;color:#888;">(${timeline.length} 筆)</span>
+    </h4>
+    ${timelineHTML}
+  </div>`;
 }
 
 // Toggle no-tracking flag
@@ -3918,9 +4183,10 @@ function switchCRMSub(name) {
   document.querySelectorAll('.crm-subtab').forEach(t => t.classList.toggle('active', t.textContent.includes(labels[name] || '')));
   document.querySelectorAll('.crm-subpanel').forEach(p => p.classList.remove('active'));
   el('crm-sub-' + name).classList.add('active');
-  if (name === 'stats')  renderStats();
-  if (name === 'orders') renderOrders();
-  if (name === 'trash')  renderTrash();
+  if (name === 'stats')    renderStats();
+  if (name === 'orders')   renderOrders();
+  if (name === 'trash')    renderTrash();
+  if (name === 'profiles') renderCustomerProfiles();
 }
 
 function showToast(msg, isError = false) {
