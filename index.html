@@ -1899,8 +1899,25 @@ async function saveQuoteAndCRM() {
   // ── AWAIT the actual Supabase save — only show success after confirmed ──
   try {
     await dbSave('crm', state.customers);
-    renderCRM();
-    showToast('✅ 報價已確認儲存！');
+    // Reset CRM filters so the customer is visible, then switch tab
+    state.crmFilter = 'all';
+    state.showOrdered = false;
+    state.showArchived = false;
+    state.crmTagFilter = '';
+    state.crmSpecialFilter = '';
+    switchTab('crm');
+    showToast(`✅ 已儲存：${customerName}`);
+    // Scroll to and briefly highlight the customer card
+    setTimeout(() => {
+      const card = document.querySelector(`[data-cust-id="${customer.id}"]`);
+      if (card) {
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        card.style.transition = 'box-shadow 0.3s, border-color 0.3s';
+        card.style.boxShadow = '0 0 0 3px #4285f4';
+        card.style.borderColor = '#4285f4';
+        setTimeout(() => { card.style.boxShadow = ''; card.style.borderColor = ''; }, 2500);
+      }
+    }, 300);
   } catch(e) {
     showToast('❌ 儲存失敗！請重試或檢查網路', true);
     console.error('saveQuoteAndCRM failed:', e);
@@ -2072,7 +2089,7 @@ function renderCRM() {
     ).join('');
 
     return `
-    <div class="${cardClass}">
+    <div class="${cardClass}" data-cust-id="${c.id}">
       <div class="cc-header">
         <div style="display:flex;align-items:center;gap:8px;">
           <span class="cc-stars" onclick="cycleImportance(${c.id})" title="點擊切換重要性">${stars}</span>
@@ -4179,7 +4196,7 @@ function switchTab(name) {
 
 function switchCRMSub(name) {
   state.crmSubTab = name;
-  const labels = { customers: '客戶總覽', orders: '訂單追蹤', stats: '統計報表', tools: '業務工具', trash: '回收桶' };
+  const labels = { customers: '客戶總覽', orders: '訂單追蹤', stats: '統計報表', profiles: '客戶資料庫', tools: '業務工具', trash: '回收桶' };
   document.querySelectorAll('.crm-subtab').forEach(t => t.classList.toggle('active', t.textContent.includes(labels[name] || '')));
   document.querySelectorAll('.crm-subpanel').forEach(p => p.classList.remove('active'));
   el('crm-sub-' + name).classList.add('active');
