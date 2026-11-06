@@ -820,9 +820,20 @@ async function dbSave(key, value) {
       { onConflict: 'key' }
     );
     if (error) throw error;
+    return true;
   } catch(e) {
     console.error('dbSave error:', key, e);
-    showToast('⚠️ 資料儲存失敗，請檢查網路連線', true);
+    // 資料庫權限規則擋下（supabase/2026-11-06-permissions.sql）
+    if (e && (e.code === '42501' || String(e.message || '').includes('CRM_PERMISSION'))) {
+      const msg = String(e.message || '');
+      const reason = msg.includes('CRM_PERMISSION')
+        ? msg.replace(/^.*CRM_PERMISSION:\s*/, '').replace(/（id .*）$/, '')
+        : '沒有權限執行此操作';
+      showToast(`⚠️ ${reason || '沒有權限執行此操作'}。畫面上的變更沒有存進去，請重新整理頁面`, true);
+    } else {
+      showToast('⚠️ 資料儲存失敗，請檢查網路連線', true);
+    }
+    return false;
   }
 }
 
@@ -2273,7 +2284,7 @@ function renderTrash() {
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0;">
           <button class="btn btn-sm" style="background:#0f9d58;color:white;" onclick="restoreCustomer('${c.id}')">↩ 還原</button>
-          <button class="btn btn-sm btn-danger" onclick="permanentDeleteCustomer('${c.id}')">✕ 永久刪除</button>
+          ${currentRole==='admin'?`<button class="btn btn-sm btn-danger" onclick="permanentDeleteCustomer('${c.id}')">✕ 永久刪除</button>`:''}
         </div>
       </div>`;
     }).join('');
@@ -2295,7 +2306,7 @@ function renderTrash() {
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0;">
           <button class="btn btn-sm" style="background:#0f9d58;color:white;" onclick="restoreOrder('${o.id}')">↩ 還原</button>
-          <button class="btn btn-sm btn-danger" onclick="permanentDeleteOrder('${o.id}')">✕ 永久刪除</button>
+          ${currentRole==='admin'?`<button class="btn btn-sm btn-danger" onclick="permanentDeleteOrder('${o.id}')">✕ 永久刪除</button>`:''}
         </div>
       </div>`;
     }).join('');
@@ -2304,26 +2315,29 @@ function renderTrash() {
   el('trash-list').innerHTML = html;
 }
 
-function restoreCustomer(custId) {
+async function restoreCustomer(custId) {
   const idx = state.trash.customers.findIndex(x => String(x.id) === String(custId));
   if (idx === -1) return;
   const c = state.trash.customers[idx];
   delete c.deletedAt;
   state.customers.unshift(c);
   state.trash.customers.splice(idx, 1);
-  saveCRM(); saveTrash(); renderCRM(); renderTrash();
-  showToast(`✅ 已還原客戶：${c.name}`);
+  // 先存客戶清單、再存回收桶：資料庫規則會確認被移出回收桶的項目已經回到清單裡
+  const ok = await saveCRM() && await saveTrash();
+  renderCRM(); renderTrash();
+  if (ok) showToast(`✅ 已還原客戶：${c.name}`);
 }
 
-function restoreOrder(orderId) {
+async function restoreOrder(orderId) {
   const idx = state.trash.orders.findIndex(x => String(x.id) === String(orderId));
   if (idx === -1) return;
   const o = state.trash.orders[idx];
   delete o.deletedAt;
   state.orders.unshift(o);
   state.trash.orders.splice(idx, 1);
-  saveOrders(); saveTrash(); renderOrders(); renderTrash();
-  showToast('✅ 已還原訂單');
+  const ok = await saveOrders() && await saveTrash();
+  renderOrders(); renderTrash();
+  if (ok) showToast('✅ 已還原訂單');
 }
 
 function permanentDeleteCustomer(custId) {
