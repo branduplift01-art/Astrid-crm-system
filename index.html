@@ -784,6 +784,12 @@ function applyRoleUI() {
   document.querySelectorAll('.admin-only').forEach(e => {
     e.style.display = currentRole === 'admin' ? '' : 'none';
   });
+  // 匯率是全公司共用的設定，只有管理員能改（資料庫也只允許管理員寫入 settings）
+  ['rate-rmb-twd', 'rate-usd-twd', 'rate-usd-rmb'].forEach(id => {
+    const i = el(id); if (!i) return;
+    i.disabled = currentRole !== 'admin';
+    i.title = currentRole === 'admin' ? '修改後會同步給所有人' : '匯率由管理員統一設定';
+  });
 }
 
 async function doLogin() {
@@ -813,43 +819,200 @@ async function doLogout() {
 // ============================================================
 // SUPABASE 資料存取
 // ============================================================
-async function dbSave(key, value) {
-  try {
-    const { error } = await sb.from('app_data').upsert(
-      { key, value, updated_at: new Date().toISOString() },
-      { onConflict: 'key' }
-    );
-    if (error) throw error;
-    return true;
-  } catch(e) {
-    console.error('dbSave error:', key, e);
-    // 資料庫權限規則擋下（supabase/2026-11-06-permissions.sql）
-    if (e && (e.code === '42501' || String(e.message || '').includes('CRM_PERMISSION'))) {
-      const msg = String(e.message || '');
-      const reason = msg.includes('CRM_PERMISSION')
-        ? msg.replace(/^.*CRM_PERMISSION:\s*/, '').replace(/（id .*）$/, '')
-        : '沒有權限執行此操作';
-      showToast(`⚠️ ${reason || '沒有權限執行此操作'}。畫面上的變更沒有存進去，請重新整理頁面`, true);
-    } else {
-      showToast('⚠️ 資料儲存失敗，請檢查網路連線', true);
+// 以使用者電腦的當地日期為準（台灣時間），不要用 toISOString（那是國際標準時間，早上 8 點前會差一天）
+function localDate(d = new Date()) {
+  const x = new Date(d);
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+}
+
+// ── 多人同步 ──────────────────────────────────────────────
+// 每個 key 記住「上次從資料庫讀到的版本（updated_at）和內容」。
+// 存檔時只在資料庫版本沒變的情況下寫入；如果別人已經先存了，
+// 就把「我改的部分」合併到「別人的最新版本」上再存，不會互相蓋掉。
+const _sync = { version: {}, base: {}, queue: {}, pending: 0 };
+const SYNC_STATE = {
+  crm:    { get: () => state.customers, set: v => { state.customers = v; } },
+  orders: { get: () => state.orders,    set: v => { state.orders = v; } },
+  trash:  { get: () => state.trash,     set: v => { state.trash = v; } },
+  tools:  { get: () => state.toolsData, set: v => { state.toolsData = v; } },
+};
+const _clone = v => v === undefined ? undefined : JSON.parse(JSON.stringify(v));
+const _same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+// 物件：逐欄位合併。我沒改的欄位用別人的最新值，我改過的欄位用我的值。
+function mergeObject(base, mine, theirs) {
+  if (_same(mine, base)) return _clone(theirs);
+  if (_same(theirs, base) || theirs === null || typeof theirs !== 'object') return mine;
+  const out = {};
+  new Set([...Object.keys(theirs), ...Object.keys(mine)]).forEach(k => {
+    const inBase = base && Object.prototype.hasOwnProperty.call(base, k);
+    if (!Object.prototype.hasOwnProperty.call(mine, k)) {
+      if (!inBase || !_same(theirs[k], base[k])) out[k] = theirs[k]; // 我刪掉的欄位，除非別人又改了
+      return;
     }
-    return false;
+    out[k] = inBase && _same(mine[k], base[k]) ? theirs[k] : mine[k];
+  });
+  return out;
+}
+
+// 有 id 的清單（客戶、訂單）：逐筆合併。
+function mergeList(base, mine, theirs) {
+  base = base || []; theirs = theirs || [];
+  const byId = arr => new Map(arr.map(x => [String(x.id), x]));
+  const B = byId(base), T = byId(theirs), M = byId(mine);
+  const out = [];
+  mine.forEach(m => {
+    const id = String(m.id), b = B.get(id), t = T.get(id);
+    if (!b) { out.push(m); return; }                       // 我新增的
+    if (!t) { if (!_same(m, b)) out.push(m); return; }      // 別人刪掉：我沒改就跟著刪
+    out.push(mergeObject(b, m, t));
+  });
+  // 別人新增的：原本排在最前面的放前面，其他放後面
+  const firstKnown = theirs.findIndex(t => B.has(String(t.id)));
+  const added = theirs.filter(t => !B.has(String(t.id)) && !M.has(String(t.id)));
+  const front = added.filter(t => firstKnown === -1 || theirs.indexOf(t) < firstKnown);
+  const back  = added.filter(t => !front.includes(t));
+  return [...front, ...out, ...back];
+}
+
+function mergeValue(key, base, mine, theirs) {
+  if (key === 'crm' || key === 'orders') return mergeList(base, mine, theirs);
+  if (key === 'trash') {
+    return {
+      ...mergeObject(base || {}, mine, theirs || {}),
+      customers: mergeList(base?.customers, mine.customers || [], theirs?.customers),
+      orders:    mergeList(base?.orders,    mine.orders    || [], theirs?.orders),
+    };
   }
+  return mergeObject(base || {}, mine, theirs || {});
+}
+
+function showSaveError(e) {
+  console.error('dbSave error:', e);
+  // 資料庫權限規則擋下（supabase/2026-11-06-permissions.sql）
+  if (e && e.code === 'NOT_LOADED') {
+    showToast('⚠️ 這份資料先前沒有載入成功，為了避免蓋掉資料庫，這次沒有存檔。請重新整理頁面', true);
+    return;
+  }
+  if (e && (e.code === '42501' || String(e.message || '').includes('CRM_PERMISSION'))) {
+    const msg = String(e.message || '');
+    const reason = msg.includes('CRM_PERMISSION')
+      ? msg.replace(/^.*CRM_PERMISSION:\s*/, '').replace(/（id .*）$/, '')
+      : '沒有權限執行此操作';
+    showToast(`⚠️ ${reason || '沒有權限執行此操作'}。畫面上的變更沒有存進去，請重新整理頁面`, true);
+  } else {
+    showToast('⚠️ 資料儲存失敗，請檢查網路連線', true);
+  }
+}
+
+async function _fetchRow(key) {
+  const { data, error } = await sb.from('app_data').select('value, updated_at').eq('key', key).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+function _rememberRow(key, row) {
+  _sync.version[key] = row ? row.updated_at : null;
+  _sync.base[key] = row ? _clone(row.value) : undefined;
+}
+
+async function _saveNow(key, value) {
+  const S = SYNC_STATE[key];
+  if (S) value = S.get(); // 永遠存最新的畫面狀態
+  const snapshot = _clone(value);
+  let merged = false;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const version = _sync.version[key];
+    if (version === undefined) {
+      // 沒成功讀過這份資料（例如載入失敗）：不能整包覆蓋，避免把資料庫清空
+      const row = await _fetchRow(key);
+      if (row) throw { code: 'NOT_LOADED' };
+      const { data, error } = await sb.from('app_data')
+        .insert({ key, value, updated_at: new Date().toISOString() }).select('updated_at');
+      if (error && error.code !== '23505') throw error;   // 23505 = 別人剛好先建立，重試
+      if (!error) { _sync.version[key] = data[0].updated_at; _sync.base[key] = _clone(value); break; }
+      continue;
+    }
+    const { data, error } = await sb.from('app_data')
+      .update({ value, updated_at: new Date().toISOString() })
+      .eq('key', key).eq('updated_at', version).select('updated_at');
+    if (error) throw error;
+    if (data && data.length === 1) {
+      _sync.version[key] = data[0].updated_at; _sync.base[key] = _clone(value);
+      break;
+    }
+    // 沒有寫入：可能是別人先存了，也可能是沒有權限
+    const row = await _fetchRow(key);
+    if (row && row.updated_at === version) throw { code: '42501', message: '' };
+    value = mergeValue(key, _sync.base[key], value, row ? row.value : undefined);
+    _rememberRow(key, row); merged = true;
+    if (attempt === 3) throw new Error('save conflict retries exhausted');
+  }
+  if (S && merged) {
+    // 存檔期間如果畫面又有新變更，也一起保留下來，之後再存一次
+    const cur = S.get();
+    const editedMeanwhile = !_same(cur, snapshot);
+    S.set(editedMeanwhile ? mergeValue(key, snapshot, cur, value) : value);
+    rerenderAll();
+    showToast('🔄 已合併其他人剛做的更新');
+    if (editedMeanwhile) dbSave(key);
+  }
+  return true;
+}
+
+// 同一份資料的存檔排隊進行，避免自己跟自己衝突
+function dbSave(key, value) {
+  _sync.pending++;
+  const run = () => _saveNow(key, value).catch(e => { showSaveError(e); return false; })
+                                        .finally(() => { _sync.pending--; });
+  const p = (_sync.queue[key] || Promise.resolve()).then(run);
+  _sync.queue[key] = p;
+  return p;
 }
 
 let _dbLoadFailed = false;
 async function dbLoad(key) {
   try {
-    const { data, error } = await sb.from('app_data')
-      .select('value').eq('key', key).maybeSingle();
-    if (error) throw error;
-    return data?.value ?? null;
+    const row = await _fetchRow(key);
+    _rememberRow(key, row);
+    return row ? row.value : null;
   } catch(e) {
     console.error('dbLoad error:', key, e);
     _dbLoadFailed = true;
     return null;
   }
 }
+
+function rerenderAll() {
+  try {
+    renderCRM(); renderOrders(); renderTools();
+    if (state.crmSubTab === 'stats') renderStats();
+    if (state.crmSubTab === 'profiles') renderCustomerProfiles();
+    if (state.crmSubTab === 'trash') renderTrash();
+  } catch (e) { console.error('rerender error', e); }
+}
+
+// 回到這個分頁、或每 2 分鐘，檢查別人有沒有更新資料；有的話自動帶入
+async function refreshIfChanged() {
+  if (!currentUser || document.hidden) return;
+  if (document.querySelector('.modal-overlay.show')) return;     // 正在編輯就先不動
+  if (_sync.pending > 0) return;                                 // 還在存檔
+  const { data, error } = await sb.from('app_data').select('key, updated_at').in('key', Object.keys(SYNC_STATE));
+  if (error || !data) return;
+  let changed = false;
+  for (const r of data) {
+    if (r.updated_at === _sync.version[r.key] || _sync.pending > 0) continue;
+    const row = await _fetchRow(r.key);
+    if (!row) continue;
+    const S = SYNC_STATE[r.key];
+    S.set(mergeValue(r.key, _sync.base[r.key], S.get(), row.value));
+    _rememberRow(r.key, row);
+    changed = true;
+  }
+  if (changed) rerenderAll();
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshIfChanged(); });
+setInterval(refreshIfChanged, 120000);
 
 // ============================================================
 // SHIPPING REFERENCE DATA
@@ -1184,7 +1347,10 @@ async function init() {
   renderTools();
   recalc();
   applyRoleUI();
+  // 資料庫還沒存過匯率時，由管理員把目前的匯率存進去，讓所有人用同一組
+  if (_ratesMissing && currentRole === 'admin' && !_dbLoadFailed) saveSettings();
 }
+let _ratesMissing = false;
 
 function saveSettings() {
   state.rates.rmbTwd = parseFloat(el('rate-rmb-twd').value) || 4.75;
@@ -1205,6 +1371,7 @@ function saveTrash()  { return dbSave('trash',  state.trash); }
 async function loadAllData() {
   // Settings
   const savedSettings = await dbLoad('settings');
+  _ratesMissing = !savedSettings || !savedSettings.rates;
   if (savedSettings) {
     if (savedSettings.tiers)     state.tiers = savedSettings.tiers;
     if (savedSettings.templates) state.templates = savedSettings.templates;
@@ -1253,7 +1420,7 @@ async function loadAllData() {
   if (!state.trash.customers) state.trash.customers = [];
   if (!state.trash.orders)    state.trash.orders    = [];
   const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30);
-  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  const cutoffStr = localDate(cutoff);
   const beforeC = state.trash.customers.length, beforeO = state.trash.orders.length;
   state.trash.customers = state.trash.customers.filter(c => (c.deletedAt || '') >= cutoffStr);
   state.trash.orders    = state.trash.orders.filter(o => (o.deletedAt || '') >= cutoffStr);
@@ -1305,8 +1472,8 @@ async function loadAllData() {
         notes: noteLines.join('\n'),
         stage: mapping.stage,
         autoCreated: true,
-        createdAt: c.createdAt || new Date().toISOString().slice(0,10),
-        updatedAt: new Date().toISOString().slice(0,10)
+        createdAt: c.createdAt || localDate(),
+        updatedAt: localDate()
       });
       needSave = true;
     }
@@ -1855,7 +2022,7 @@ async function saveQuoteAndCRM() {
 
   const quoteRecord = {
     id: Date.now(),
-    date: new Date().toISOString().slice(0, 10),
+    date: localDate(),
     products, totalLogo, shipping, totalAmount, quoteText,
     suppliers: getQuoteSuppliers(),
     costRMB: totalCostRMB,
@@ -1881,7 +2048,7 @@ async function saveQuoteAndCRM() {
       importance: 2, tags: [], followUpDate: '', productType: '', estimatedAmount: 0,
       quotes: [], notes: [],
       suppliers: quoteSuppliers,
-      createdAt: new Date().toISOString().slice(0, 10)
+      createdAt: localDate()
     };
     state.customers.unshift(customer);
   } else {
@@ -1897,14 +2064,14 @@ async function saveQuoteAndCRM() {
 
   customer.quotes.unshift(quoteRecord);
   customer.notes.unshift({
-    date: new Date().toISOString().slice(0, 10),
+    date: localDate(),
     text: `報價 US$${totalAmount.toFixed(0)} — ${products.map(p => `${p.name} x${p.qty}`).join(', ')}`,
     type: 'quote'
   });
 
   if (!customer.followUpDate) {
     const d = new Date(); d.setDate(d.getDate() + 7);
-    customer.followUpDate = d.toISOString().slice(0, 10);
+    customer.followUpDate = localDate(d);
   }
 
   // ── AWAIT the actual Supabase save — only show success after confirmed ──
@@ -1941,7 +2108,7 @@ async function saveQuoteAndCRM() {
 // CRM - DASHBOARD
 // ============================================================
 function renderDashboard() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDate();
   const trackable = state.customers.filter(c => !c.noTracking);
   const overdue = trackable.filter(c => c.followUpDate && c.followUpDate < today).length;
   const dueToday = trackable.filter(c => c.followUpDate === today).length;
@@ -2016,7 +2183,7 @@ function renderCRM() {
     return true;
   });
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDate();
   if (state.crmSpecialFilter === 'overdue') {
     filtered = filtered.filter(c => c.followUpDate && c.followUpDate < today);
   } else if (state.crmSpecialFilter === 'today') {
@@ -2249,7 +2416,7 @@ function renderCRM() {
 function renderTrash() {
   const tc = (state.trash && state.trash.customers) ? state.trash.customers : [];
   const to = (state.trash && state.trash.orders)    ? state.trash.orders    : [];
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDate();
 
   function daysLeft(deletedAt) {
     const diff = Math.round(30 - (new Date(today) - new Date(deletedAt || today)) / 86400000);
@@ -2398,7 +2565,7 @@ function quickFollowUp(custId, days) {
   const c = state.customers.find(x => String(x.id) === String(custId));
   if (!c) return;
   const d = new Date(); d.setDate(d.getDate() + days);
-  c.followUpDate = d.toISOString().slice(0, 10);
+  c.followUpDate = localDate(d);
   saveCRM(); renderCRM();
   showToast(`追單日設為 ${days} 天後`);
 }
@@ -2407,7 +2574,7 @@ function quickFollowUp(custId, days) {
 function markFollowedUp(custId) {
   const c = state.customers.find(x => String(x.id) === String(custId));
   if (!c) return;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDate();
   c.notes = c.notes || [];
   c.followUpCount = (c.followUpCount || 0) + 1;
   c.notes.unshift({ date: today, text: `✅ 已追蹤（第 ${c.followUpCount} 次）`, type: 'note' });
@@ -2773,7 +2940,7 @@ function setOrderFollowUp(orderId, dateVal) {
   const o = state.orders.find(x => String(x.id) === String(orderId));
   if (!o) return;
   o.followUpDate = dateVal;
-  o.updatedAt = new Date().toISOString().slice(0, 10);
+  o.updatedAt = localDate();
   saveOrders(); renderOrders();
 }
 
@@ -2781,8 +2948,8 @@ function quickOrderFollowUp(orderId, days) {
   const o = state.orders.find(x => String(x.id) === String(orderId));
   if (!o) return;
   const d = new Date(); d.setDate(d.getDate() + days);
-  o.followUpDate = d.toISOString().slice(0, 10);
-  o.updatedAt = new Date().toISOString().slice(0, 10);
+  o.followUpDate = localDate(d);
+  o.updatedAt = localDate();
   saveOrders(); renderOrders();
   showToast(`訂單提醒設為 ${days} 天後`);
 }
@@ -2791,7 +2958,7 @@ function markOrderFollowedUp(orderId) {
   const o = state.orders.find(x => String(x.id) === String(orderId));
   if (!o) return;
   o.followUpDate = '';
-  o.updatedAt = new Date().toISOString().slice(0, 10);
+  o.updatedAt = localDate();
   saveOrders(); renderOrders();
   showToast('✅ 訂單追蹤已清除');
 }
@@ -2816,7 +2983,7 @@ function updateStatus(custId, newStatus) {
   }
 
   c.notes.unshift({
-    date: new Date().toISOString().slice(0, 10),
+    date: localDate(),
     text: `狀態變更: ${oldLabel} → ${newLabel}`,
     type: 'status'
   });
@@ -2855,8 +3022,8 @@ function updateStatus(custId, newStatus) {
         notes: noteLines.join('\n'),
         stage: 'ready',
         autoCreated: true,
-        createdAt: new Date().toISOString().slice(0,10),
-        updatedAt: new Date().toISOString().slice(0,10)
+        createdAt: localDate(),
+        updatedAt: localDate()
       };
       state.orders.unshift(newOrder);
       saveOrders(); renderOrders();
@@ -2874,7 +3041,7 @@ async function addNote(custId) {
   if (!text) return;
   const c = state.customers.find(x => String(x.id) === String(custId));
   if (!c) return;
-  c.notes.unshift({ date: new Date().toISOString().slice(0, 10), text, type: 'note' });
+  c.notes.unshift({ date: localDate(), text, type: 'note' });
   input.value = '';
   input.disabled = true;
   try {
@@ -2902,7 +3069,7 @@ function editNote(custId, index) {
   const newText = prompt('編輯備註：', c.notes[index].text);
   if (newText === null) return;
   c.notes[index].text = newText.trim();
-  c.notes[index].editedAt = new Date().toISOString().slice(0,10);
+  c.notes[index].editedAt = localDate();
   saveCRM(); renderCRM();
 }
 
@@ -2910,7 +3077,7 @@ function saveSupplierNote(custId, value) {
   const c = state.customers.find(x => String(x.id) === String(custId));
   if (!c) return;
   c.supplierNote = value;
-  c.supplierNoteUpdated = new Date().toISOString().slice(0, 10);
+  c.supplierNoteUpdated = localDate();
   saveCRM();
 }
 
@@ -2949,7 +3116,7 @@ function saveLead() {
   }
 
   const note = (el('lead-note')?.value || '').trim();
-  const notes = note ? [{ date: new Date().toISOString().slice(0,10), text: note, type: 'note' }] : [];
+  const notes = note ? [{ date: localDate(), text: note, type: 'note' }] : [];
 
   const lead = {
     id: Date.now(),
@@ -2964,7 +3131,7 @@ function saveLead() {
     quotes: [], notes,
     suppliers: [],
     isLead: true,
-    createdAt: new Date().toISOString().slice(0,10)
+    createdAt: localDate()
   };
 
   state.customers.unshift(lead);
@@ -2987,7 +3154,7 @@ function deleteCustomer(custId) {
   }
 
   const c = Object.assign({}, state.customers[idx]);
-  c.deletedAt = new Date().toISOString().slice(0, 10);
+  c.deletedAt = localDate();
 
   state.trash.customers.unshift(c);
   state.customers.splice(idx, 1);
@@ -3065,9 +3232,9 @@ function closeModal(id) { el(id).classList.remove('show'); }
 // ORDER TRACKING
 // ============================================================
 function renderOrders() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDate();
   const cutoff30 = new Date(); cutoff30.setDate(cutoff30.getDate() - 30);
-  const cutoff30Str = cutoff30.toISOString().slice(0, 10);
+  const cutoff30Str = localDate(cutoff30);
 
   // Split done orders: recent (≤30 days) vs old (>30 days, auto-archived)
   const isDoneOld = o => o.stage === 'done' && (o.updatedAt || o.createdAt || '') < cutoff30Str;
@@ -3229,7 +3396,7 @@ function updateOrderStage(orderId, newStage) {
   const o = state.orders.find(x => String(x.id) === String(orderId));
   if (!o) return;
   o.stage = newStage;
-  o.updatedAt = new Date().toISOString().slice(0, 10);
+  o.updatedAt = localDate();
   // Switch pipeline filter to the new stage so the order stays visible
   state.orderFilter = newStage;
   saveOrders(); renderOrders(); renderDashboard();
@@ -3237,7 +3404,7 @@ function updateOrderStage(orderId, newStage) {
 
 function toggleOrderField(orderId, field, val) {
   const o = state.orders.find(x => String(x.id) === String(orderId));
-  if (o) { o[field] = val; o.updatedAt = new Date().toISOString().slice(0,10); saveOrders(); renderOrders(); }
+  if (o) { o[field] = val; o.updatedAt = localDate(); saveOrders(); renderOrders(); }
 }
 
 function deleteOrder(orderId) {
@@ -3257,7 +3424,7 @@ function deleteOrder(orderId) {
 
   // Shallow-copy the object so trash has its own copy
   const o = Object.assign({}, state.orders[idx]);
-  o.deletedAt = new Date().toISOString().slice(0, 10);
+  o.deletedAt = localDate();
 
   state.trash.orders.unshift(o);
   state.orders.splice(idx, 1);   // remove in-place — no string comparison needed
@@ -3279,8 +3446,8 @@ function copyOrder(orderId) {
     shipped: false,
     trackingNumber: '',
     factoryNote: '',
-    createdAt: new Date().toISOString().slice(0, 10),
-    updatedAt: new Date().toISOString().slice(0, 10),
+    createdAt: localDate(),
+    updatedAt: localDate(),
   };
   state.orders.unshift(newOrder);
   saveOrders(); renderOrders(); renderDashboard();
@@ -3371,7 +3538,7 @@ function convertQuoteToOrder(custId, quoteId) {
       <div class="field"><label>主要廠商</label>${buildSelectHTML('ord-supplier', DEFAULT_SUPPLIERS, '', '-- 選擇廠商 --')}</div>
     </div>`}
     <div class="row">
-      <div class="field"><label>成交日期</label><input id="ord-order-date" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+      <div class="field"><label>成交日期</label><input id="ord-order-date" type="date" value="${localDate()}"></div>
       <div class="field"><label>預計出貨日</label><input id="ord-ship-date" type="date"></div>
       <div class="field"><label>預計抵達日</label><input id="ord-eta-date" type="date"></div>
     </div>
@@ -3416,17 +3583,17 @@ function convertQuoteToOrder(custId, quoteId) {
       notes: el('ord-notes').value,
       stage: el('ord-stage').value,
       fromQuoteId: quoteId,
-      orderDate: el('ord-order-date')?.value || new Date().toISOString().slice(0,10),
+      orderDate: el('ord-order-date')?.value || localDate(),
       shipDate: el('ord-ship-date')?.value || '',
       etaDate: el('ord-eta-date')?.value || '',
-      createdAt: new Date().toISOString().slice(0, 10),
-      updatedAt: new Date().toISOString().slice(0, 10),
+      createdAt: localDate(),
+      updatedAt: localDate(),
     };
     state.orders.unshift(newOrder);
     // Update CRM status to ordered
     c.status = 'ordered';
     c.notes = c.notes || [];
-    c.notes.unshift({ date: new Date().toISOString().slice(0,10), text: `✅ 報價轉訂單（US$${total.toFixed(0)}）`, type: 'status' });
+    c.notes.unshift({ date: localDate(), text: `✅ 報價轉訂單（US$${total.toFixed(0)}）`, type: 'status' });
     saveOrders(); saveCRM(); renderOrders(); renderCRM(); renderDashboard();
     closeModal('order-modal');
     showToast('✅ 訂單已建立，CRM 狀態已更新為「已下單」');
@@ -3471,7 +3638,7 @@ function convertQuoteToSample(custId, quoteId) {
       <div class="field"><label>主要廠商</label>${buildSelectHTML('ord-supplier', DEFAULT_SUPPLIERS, '', '-- 選擇廠商 --')}</div>
     </div>
     <div class="row">
-      <div class="field"><label>成交日期</label><input id="ord-order-date" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+      <div class="field"><label>成交日期</label><input id="ord-order-date" type="date" value="${localDate()}"></div>
       <div class="field"><label>預計出貨日</label><input id="ord-ship-date" type="date"></div>
       <div class="field"><label>預計抵達日</label><input id="ord-eta-date" type="date"></div>
     </div>
@@ -3505,15 +3672,15 @@ function convertQuoteToSample(custId, quoteId) {
       notes: el('ord-notes').value,
       stage: el('ord-stage').value,
       fromQuoteId: quoteId,
-      orderDate: el('ord-order-date')?.value || new Date().toISOString().slice(0,10),
+      orderDate: el('ord-order-date')?.value || localDate(),
       shipDate: el('ord-ship-date')?.value || '',
       etaDate: el('ord-eta-date')?.value || '',
-      createdAt: new Date().toISOString().slice(0, 10),
-      updatedAt: new Date().toISOString().slice(0, 10),
+      createdAt: localDate(),
+      updatedAt: localDate(),
     };
     state.orders.unshift(newOrder);
     c.notes = c.notes || [];
-    c.notes.unshift({ date: new Date().toISOString().slice(0,10), text: `📦 樣品單已建立（US$${total.toFixed(0)}）`, type: 'status' });
+    c.notes.unshift({ date: localDate(), text: `📦 樣品單已建立（US$${total.toFixed(0)}）`, type: 'status' });
     saveOrders(); saveCRM(); renderOrders(); renderCRM(); renderDashboard();
     closeModal('order-modal');
     showToast('📦 樣品單已建立');
@@ -3574,8 +3741,8 @@ function showNewOrderModal() {
       address: el('ord-address').value,
       notes: el('ord-notes').value,
       stage: el('ord-stage').value,
-      createdAt: new Date().toISOString().slice(0,10),
-      updatedAt: new Date().toISOString().slice(0,10)
+      createdAt: localDate(),
+      updatedAt: localDate()
     });
     saveOrders(); renderOrders(); renderDashboard(); closeModal('order-modal');
     showToast('訂單已新增');
@@ -3634,7 +3801,7 @@ function showEditOrder(orderId) {
     o.orderDate = el('ord-order-date')?.value || o.orderDate || '';
     o.shipDate  = el('ord-ship-date')?.value  || '';
     o.etaDate   = el('ord-eta-date')?.value   || '';
-    o.updatedAt = new Date().toISOString().slice(0,10);
+    o.updatedAt = localDate();
     saveOrders(); renderOrders(); renderDashboard(); closeModal('order-modal');
     showToast('訂單已更新');
   };
@@ -3755,7 +3922,7 @@ function renderStats() {
     const sUsdRmb = state.rates.usdRmb || 7.2453;
     let woCount=0, woAmt=0, woProfit=0, moCount=0, moAmt=0, moProfit=0;
     state.orders.filter(o => !o.isSample).forEach(o => {
-      const d = new Date(o.createdAt || '');
+      const d = new Date(o.orderDate || o.createdAt || '');
       if (isNaN(d)) return;
       const rev = o.totalUSD || o.usdAmount || 0;
       const profit = o.rmbAmount > 0 ? rev - (o.rmbAmount / sUsdRmb) : 0;
@@ -3841,7 +4008,7 @@ function renderStats() {
 
   // ── 訂單統計（排除樣品單）──
   const allOrders = state.orders.filter(o => !o.isSample).map(o => ({
-    date: o.createdAt || '',
+    date: o.orderDate || o.createdAt || '',
     usdAmount: o.totalUSD || o.usdAmount || 0,   // totalUSD takes priority
     rmbAmount: o.rmbAmount || 0,
     stage: o.stage,
