@@ -303,6 +303,9 @@ body { font-family: 'Segoe UI', -apple-system, sans-serif; background: #f0f2f5; 
     </div>
     <button class="login-btn" id="login-btn" onclick="doLogin()">登入</button>
     <div class="login-error" id="login-error"></div>
+    <div style="text-align:center;margin-top:8px;">
+      <span onclick="doForgotPassword()" style="font-size:13px;color:#4285f4;cursor:pointer;text-decoration:underline;">忘記密碼？</span>
+    </div>
     <div class="login-hint">如需帳號請聯絡管理者</div>
   </div>
 </div>
@@ -802,6 +805,23 @@ async function doLogin() {
   showApp();
   await init();
   hideLoading();
+}
+
+async function doForgotPassword() {
+  const email = document.getElementById('login-email').value.trim();
+  const errEl = document.getElementById('login-error');
+  if (!email) { errEl.style.color = '#e53e3e'; errEl.textContent = '請先填入您的電子郵件'; return; }
+  errEl.textContent = '';
+  const { error } = await sb.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.href
+  });
+  if (error) {
+    errEl.style.color = '#e53e3e';
+    errEl.textContent = '發送失敗，請確認 Email 是否正確';
+  } else {
+    errEl.style.color = '#38a169';
+    errEl.textContent = `✅ 密碼重設信已發送至 ${email}，請去信箱查收`;
+  }
 }
 
 async function doLogout() {
